@@ -4,6 +4,8 @@ module Main where
 
 import           Data.Either                    (isRight)
 import           Data.Hashable                  (Hashable)
+import           Data.HashMap.Strict            (HashMap)
+import qualified Data.HashMap.Strict            as HashMap
 import           Data.Text                      (Text)
 import qualified Data.Vector.Unboxed            as Vector
 import           Test.Framework                 (defaultMain, testGroup)
@@ -26,32 +28,33 @@ testHashComputation key val =
     computed_hash = Hashing.hash 0 key
 
 
-wordIndexTuplesString :: [(String, Int)]
-wordIndexTuplesString = zip [
+wordIndexTuplesString :: HashMap String Int
+wordIndexTuplesString = HashMap.fromList $ zip [
     "apple"
   , "banana"
   , "carrot"
   ] [1..]
 
 
-wordIndexTuplesText :: [(Text, Int)]
-wordIndexTuplesText = zip [
+wordIndexTuplesText :: HashMap Text Int
+wordIndexTuplesText = HashMap.fromList $ zip [
     "alpha"
   , "beta"
   , "gamma"
   ] [1..]
 
 
-intMapTuples :: [(Int, Int)]
-intMapTuples = [
-    (1000, 1)
-  , (5555, 2)
-  , (9876, 3)
-  ]
+intMapTuples :: HashMap Int Int
+intMapTuples = HashMap.fromList $ zip [
+    1000
+  , 5555
+  , 9876
+  ] [1..]
 
 
 testHashLookups :: (Show a, Show b, Eq b, Vector.Unbox b, Construction.Defaultable b, Hashing.ToHashableChunks a, Eq a, Hashable a) =>
-  [(a, b)] -> IO ()
+     HashMap a b
+  -> IO ()
 testHashLookups word_index_tuples =
   assertBool "Perfect hash lookups failed to match the input" $ isRight test_result_either
   where

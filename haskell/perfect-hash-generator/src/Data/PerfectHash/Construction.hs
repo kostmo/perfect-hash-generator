@@ -1,10 +1,13 @@
 {-# OPTIONS_HADDOCK prune #-}
 
--- | Constructs a minimal perfect hash.
+-- | Constructs a minimal perfect hash from a map of key-value pairs.
 --
--- Implementation was transliterated from Python on
--- <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's Blog>
--- and then refactored.
+-- Implementation was adapted from
+-- <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's Blog>.
+--
+-- A refactoring of that Python implementation may be found
+-- <https://github.com/kostmo/perfect-hash-generator/blob/master/python/perfect-hash.py here>.
+-- This Haskell implementation is transliterated from that refactoring.
 module Data.PerfectHash.Construction (
     createMinimalPerfectHash
   , Defaultable
@@ -38,6 +41,7 @@ emptyLookupTable :: LookupTable a
 emptyLookupTable = NewLookupTable HashMap.empty HashMap.empty
 
 
+-- | Used to fill empty slots when promoting a HashMap to a Vector
 class Defaultable a where
   getDefault :: a
 
@@ -60,6 +64,9 @@ convertToVector x = Lookup.LookupTable a1 a2
 -- for every element in this multi-entry bucket, for the given nonce.
 --
 -- Return a Nothing for a slot if it collides.
+--
+-- This function is able to fail fast if one of the elements of the bucket
+-- yields a collision with the new nonce.
 attemptNonceRecursive :: Hashing.ToHashableChunks a =>
      HashMapAndSize Int b
   -> Int -- ^ nonce
@@ -95,10 +102,10 @@ findNonceForBucket :: Hashing.ToHashableChunks a =>
      Int -- ^ nonce to attempt
   -> HashMapAndSize Int b
   -> [a] -- ^ colliding keys for this bucket
-  -> ([Int], Int)
+  -> ([(Int, a)], Int) -- ^ slots for each bucket, with the current nonce attempt
 findNonceForBucket nonce_attempt values_and_size bucket =
 
-  maybe recursive_result (\x -> (x, nonce_attempt)) maybe_attempt_result
+  maybe recursive_result (\x -> (zip x bucket, nonce_attempt)) maybe_attempt_result
   where
     recursive_result = findNonceForBucket (nonce_attempt + 1) values_and_size bucket
     maybe_attempt_result = sequenceA $ attemptNonceRecursive
@@ -117,17 +124,17 @@ handleMultiBuckets :: (Hashing.ToHashableChunks a, Eq a, Hashable a) =>
   -> (Int, [a])
   -> LookupTable b
 handleMultiBuckets sized_words_dict old_lookup_table (computed_hash, bucket) =
-  NewLookupTable new_g new_values
+  NewLookupTable new_g new_values_dict
   where
     HashMapAndSize words_dict size = sized_words_dict
 
     sized_vals_dict = HashMapAndSize (vals old_lookup_table) size
-    (slots, nonce) = findNonceForBucket 1 sized_vals_dict bucket
+    (slots_for_bucket, nonce) = findNonceForBucket 1 sized_vals_dict bucket
 
-    new_g = HashMap.insert computed_hash nonce (redirs old_lookup_table)
-    new_values = foldr fold_func (vals old_lookup_table) $ zip [0..] bucket
+    new_g = HashMap.insert computed_hash nonce $ redirs old_lookup_table
+    new_values_dict = foldr fold_func (vals old_lookup_table) slots_for_bucket
 
-    fold_func (i, bucket_val) = HashMap.insert (slots !! i) $
+    fold_func (slot_val, bucket_val) = HashMap.insert slot_val $
       HashMap.lookupDefault (error "not found") bucket_val words_dict
 
 
@@ -173,17 +180,17 @@ preliminaryBucketPlacement words_dict =
 
 -- | Generates a minimal perfect hash for a set of key-value pairs.
 --
--- The keys must be 'Foldable's of 'ToNumeric' instances in order to be hashable.
+-- The keys must be instances of 'Hashing.ToHashableChunks'.
 -- The values may be of arbitrary type.
 --
--- /__N.b.__/ It is assumed that the input tuples list has no duplicate keys.
+-- A 'HashMap' is required as input to guarantee that there are no duplicate keys.
 createMinimalPerfectHash :: (Vector.Unbox b, Defaultable b, Hashing.ToHashableChunks a, Eq a, Hashable a) =>
-     [(a, b)] -- ^ key-value pairs
+     HashMap a b -- ^ key-value pairs
   -> Lookup.LookupTable b
-createMinimalPerfectHash tuples =
+     -- ^ output for use by 'LookupTable.lookup' or a custom code generator
+createMinimalPerfectHash words_dict =
   convertToVector $ NewLookupTable final_g final_values
   where
-    words_dict = HashMap.fromList tuples
     size = HashMap.size words_dict
 
     sorted_bucket_hash_tuples = preliminaryBucketPlacement words_dict
@@ -215,6 +222,8 @@ binTuplesBySecond = foldr f HashMap.empty
   where
     f tuple = HashMap.insertWith (++) (snd tuple) [fst tuple]
 
+
+-- * Utility functions
 
 -- | duplicates the argument into both members of the tuple
 duple :: a -> (a, a)

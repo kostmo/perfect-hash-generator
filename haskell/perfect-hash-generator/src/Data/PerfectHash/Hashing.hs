@@ -1,22 +1,27 @@
 {-# OPTIONS_HADDOCK prune #-}
 
 {-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE Safe                 #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 
 -- | Implements the specialized hash function for
 -- this perfect hashing algorithm.
+--
+-- C code that makes use of the perfect hash table output must exactly
+-- re-implement this 'hash' function.
 module Data.PerfectHash.Hashing where
 
 import           Data.Binary          (encode)
 import           Data.Bits            (xor, (.&.))
 import           Data.ByteString.Lazy (unpack)
 import           Data.Char            (ord)
+import           Data.Foldable        (foldl')
 import           Data.Text            (Text)
 import qualified Data.Text            as T
 
 
--- | This choice of prime number was taken from the Python implementation
+-- | This choice of prime number @0x01000193@ was taken from the Python implementation
 -- on <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's page>.
 primeFNV :: Int
 primeFNV = 0x01000193
@@ -26,6 +31,8 @@ mask32bits :: Int
 mask32bits = 0xffffffff
 
 
+-- | Mechanism for a key to be decomposed into units processable by the
+-- <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV-1a> hashing algorithm.
 class ToHashableChunks a where
   toHashableChunks :: a -> [Int]
 
@@ -48,7 +55,7 @@ hashToSlot nonce key size = hash nonce key `mod` size
 
 
 -- | Uses the \"FNV-1a\" algorithm from the
--- <http://isthe.com/chongo/tech/comp/fnv/ FNV website>:
+-- <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV website>:
 --
 -- > hash = offset_basis
 -- > for each octet_of_data to be hashed
@@ -66,7 +73,7 @@ hash :: ToHashableChunks a =>
 hash nonce =
 
   -- NOTE: This must be 'foldl', not 'foldr'
-  foldl combine d . toHashableChunks
+  foldl' combine d . toHashableChunks
   where
     d = if nonce == 0
       then primeFNV

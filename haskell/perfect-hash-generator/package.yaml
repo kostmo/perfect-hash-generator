@@ -1,5 +1,5 @@
 name: perfect-hash-generator
-version: '0.2.0.5'
+version: '0.2.0.6'
 synopsis: Perfect minimal hashing implementation in native Haskell
 description: ! '
 A <https://en.wikipedia.org/wiki/Perfect_hash_function perfect hash function>
@@ -18,7 +18,7 @@ Haskell implementation.
 It is intended primarily for generating C code for embedded applications
 (compare to @<https://www.gnu.org/software/gperf/manual/gperf.html#Search-Structures gperf>@).
 The output of this tool is a pair of arrays that can be included in generated
-C code for __<https://en.wikipedia.org/wiki/C_dynamic_memory_allocation allocation>-free hash tables__.
+C code for __<https://en.wikipedia.org/wiki/C_dynamic_memory_allocation allocation-free> hash tables__.
 
 
 Though lookups also perform reasonably well for Haskell applications, it
@@ -37,6 +37,8 @@ Integers are split by octets before hashing.
 
 > import Data.PerfectHash.Construction (createMinimalPerfectHash)
 
+> import qualified Data.HashMap.Strict as HashMap
+
 >
 
 > tuples = [
@@ -51,7 +53,7 @@ Integers are split by octets before hashing.
 
 >
 
-> lookup_table = createMinimalPerfectHash tuples
+> lookup_table = createMinimalPerfectHash $ HashMap.fromList tuples
 
 
 Generation of C code based on the arrays in @lookup_table@ is left as an

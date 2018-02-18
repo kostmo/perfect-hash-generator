@@ -4,6 +4,8 @@ module Exercise where
 
 import           Control.Monad            (unless)
 import           Data.Foldable            (traverse_)
+import           Data.HashMap.Strict      (HashMap)
+import qualified Data.HashMap.Strict      as HashMap
 import qualified Data.Vector.Unboxed      as Vector
 
 import qualified Data.PerfectHash.Hashing as Hashing
@@ -12,10 +14,10 @@ import qualified Data.PerfectHash.Lookup  as Lookup
 
 testLookups :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b) =>
      Lookup.LookupTable b
-  -> [(a, b)]
+  -> HashMap a b
   -> Either String ()
 testLookups lookup_table =
-  traverse_ check_entry
+  traverse_ check_entry . HashMap.toList
   where
     check_entry (word, source_index) = unless (lookup_result == source_index) $
       Left $ unwords [
@@ -27,7 +29,7 @@ testLookups lookup_table =
         , show source_index
         ]
       where
-        lookup_result = Lookup.lookupPerfect lookup_table word
+        lookup_result = Lookup.lookup lookup_table word
 
 
 -- | Generate a map of words from a file to their line numbers.

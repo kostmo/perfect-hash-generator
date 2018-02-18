@@ -1,18 +1,17 @@
 {-# OPTIONS_HADDOCK prune #-}
 
 -- | Note that what is referred to as a \"nonce\" in this library may be
--- equivalently described as a \"salt\" by some.
+-- better known as <https://en.wikipedia.org/wiki/Salt_(cryptography) \"salt\">.
 module Data.PerfectHash.Lookup (
-    LookupTable (LookupTable)
-  , nonces
-  , values
+    LookupTable (LookupTable, nonces, values)
   , size
   , encodeDirectEntry
-  , lookupPerfect
+  , lookup
   ) where
 
 import           Data.Vector.Unboxed      (Vector, (!))
 import qualified Data.Vector.Unboxed      as Vector
+import           Prelude                  hiding (lookup)
 
 import qualified Data.PerfectHash.Hashing as Hashing
 
@@ -33,12 +32,12 @@ data LookupTable a = LookupTable {
     -- Otherwise, the value shall be used as a nonce in a second application of
     -- the hashing function to compute the index into the 'values' array.
     --
-    -- See the documentation of 'lookupPerfect' for details.
+    -- See the documentation of 'lookup' for details.
   , values :: Vector a
     -- ^ An array of values of arbitrary type.
     --
-    -- The objective of the perfect hash is to efficiently obtain an index into
-    -- this array, given the associated key for the value at that index.
+    -- The objective of the perfect hash is to efficiently retrieve an index into
+    -- this array, given the key associated with the value at that index.
   }
 
 
@@ -69,11 +68,11 @@ encodeDirectEntry = subtract 1 . negate
 --           respect to the length of the 'values' array.
 --
 --     3. Use the result of (2) as the index into the 'values' array.
-lookupPerfect :: (Hashing.ToHashableChunks a, Vector.Unbox b) =>
+lookup :: (Hashing.ToHashableChunks a, Vector.Unbox b) =>
      LookupTable b
   -> a -- ^ key
-  -> b
-lookupPerfect lookup_table key =
+  -> b -- ^ value
+lookup lookup_table key =
 
   values lookup_table ! v_key
 
