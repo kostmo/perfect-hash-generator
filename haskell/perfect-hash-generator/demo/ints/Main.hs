@@ -6,8 +6,8 @@ import           Data.IntSet                   (IntSet)
 import qualified Data.IntSet                   as IntSet
 import qualified Data.PerfectHash.Construction as Construction
 import qualified Data.PerfectHash.Lookup       as Lookup
-import qualified Data.PerfectHash.TestUtils    as Exercise
 import qualified Data.Vector.Unboxed           as Vector
+import qualified Exercise
 
 
 valueCount = 250000

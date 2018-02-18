@@ -1,6 +1,6 @@
 -- | This module is not used by the main library for constructing perfect hashes;
 -- it just provides convenience functions for use by the tests and demonstration executables.
-module Data.PerfectHash.TestUtils where
+module Exercise where
 
 import           Control.Monad            (unless)
 import           Data.Foldable            (traverse_)

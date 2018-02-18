@@ -1,5 +1,5 @@
 name: perfect-hash-generator
-version: '0.2.0.4'
+version: '0.2.0.5'
 synopsis: Perfect minimal hashing implementation in native Haskell
 description: ! '
 A <https://en.wikipedia.org/wiki/Perfect_hash_function perfect hash function>
@@ -97,6 +97,7 @@ executables:
     main: Main.hs
     source-dirs:
     - demo/strings
+    - test-utils
     dependencies:
     - perfect-hash-generator
     - random
@@ -107,6 +108,7 @@ executables:
     main: Main.hs
     source-dirs:
     - demo/ints
+    - test-utils
     dependencies:
     - perfect-hash-generator
     - random
@@ -117,7 +119,9 @@ executables:
 tests:
   regression-tests:
     main: Main.hs
-    source-dirs: test
+    source-dirs:
+    - test
+    - test-utils
     dependencies:
     - perfect-hash-generator
     - optparse-applicative

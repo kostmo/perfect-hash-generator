@@ -4,7 +4,7 @@ import           Control.Monad                 (when)
 
 import qualified Data.PerfectHash.Construction as Construction
 import qualified Data.PerfectHash.Lookup       as Lookup
-import qualified Data.PerfectHash.TestUtils    as Exercise
+import qualified Exercise
 
 
 enableDebug = False

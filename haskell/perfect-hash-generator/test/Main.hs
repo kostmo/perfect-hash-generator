@@ -12,7 +12,7 @@ import           Test.HUnit                     (assertBool, assertEqual)
 
 import qualified Data.PerfectHash.Construction  as Construction
 import qualified Data.PerfectHash.Hashing       as Hashing
-import qualified Data.PerfectHash.TestUtils     as Exercise
+import qualified Exercise
 
 
 testHashComputation :: (Hashing.ToHashableChunks a, Show a) =>
