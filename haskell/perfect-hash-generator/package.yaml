@@ -1,0 +1,128 @@
+name: perfect-hash-generator
+version: '0.2.0.4'
+synopsis: Perfect minimal hashing implementation in native Haskell
+description: ! '
+A <https://en.wikipedia.org/wiki/Perfect_hash_function perfect hash function>
+for a set @S@ is a hash function that maps distinct elements in @S@ to a set of
+integers, with __no collisions__.
+A <https://en.wikipedia.org/wiki/Perfect_hash_function#Minimal_perfect_hash_function minimal perfect hash function>
+is a perfect hash function that maps @n@ keys to @n@ __consecutive__
+integers, e.g. the numbers from @0@ to @n-1@.
+
+
+In contrast with the <https://hackage.haskell.org/package/PerfectHash PerfectHash package>,
+which is a binding to a C-based library, this package is a fully-native
+Haskell implementation.
+
+
+It is intended primarily for generating C code for embedded applications
+(compare to @<https://www.gnu.org/software/gperf/manual/gperf.html#Search-Structures gperf>@).
+The output of this tool is a pair of arrays that can be included in generated
+C code for __<https://en.wikipedia.org/wiki/C_dynamic_memory_allocation allocation>-free hash tables__.
+
+
+Though lookups also perform reasonably well for Haskell applications, it
+hasn''t been benchmarked thorougly with respect to other data structures.
+
+
+This implementation was adapted from <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov''s Blog>.
+
+
+= Usage
+
+The library is written generically to hash both strings and raw integers
+according to the <http://isthe.com/chongo/tech/comp/fnv/ FNV-1a algorithm>.
+Integers are split by octets before hashing.
+
+
+> import Data.PerfectHash.Construction (createMinimalPerfectHash)
+
+>
+
+> tuples = [
+
+>    (1000, 1)
+
+>  , (5555, 2)
+
+>  , (9876, 3)
+
+>  ]
+
+>
+
+> lookup_table = createMinimalPerfectHash tuples
+
+
+Generation of C code based on the arrays in @lookup_table@ is left as an
+exercise to the reader. Algorithm documentation in the "Data.PerfectHash.Hashing"
+and "Data.PerfectHash.Lookup" modules will be helpful.
+
+
+See the @hash-perfectly-strings-demo@ and @hash-perfectly-ints-demo@, as well as the
+test suite, for working examples.
+
+
+> $ stack build
+
+> $ stack exec hash-perfectly-strings-demo
+'
+
+author: Karl Ostmo <kostmo@gmail.com>
+maintainer: Karl Ostmo <kostmo@gmail.com>
+category: Data Structures, Embedded
+github: kostmo/perfect-hash-generator
+license: Apache-2.0
+license-file: LICENSE
+ghc-options:
+- -fwarn-tabs
+- -W
+dependencies:
+- base >= 4.5 && < 5
+- unordered-containers
+- binary
+- bytestring
+- text
+library:
+  source-dirs: src
+  dependencies:
+  - containers
+  - data-ordlist
+  - directory
+  - filepath
+  - hashable
+  - vector
+executables:
+  hash-perfectly-strings-demo:
+    main: Main.hs
+    source-dirs:
+    - demo/strings
+    dependencies:
+    - perfect-hash-generator
+    - random
+    - optparse-applicative
+    - vector
+    - hashable
+  hash-perfectly-ints-demo:
+    main: Main.hs
+    source-dirs:
+    - demo/ints
+    dependencies:
+    - perfect-hash-generator
+    - random
+    - optparse-applicative
+    - vector
+    - hashable
+    - containers
+tests:
+  regression-tests:
+    main: Main.hs
+    source-dirs: test
+    dependencies:
+    - perfect-hash-generator
+    - optparse-applicative
+    - test-framework
+    - HUnit
+    - test-framework-hunit
+    - hashable
+    - vector

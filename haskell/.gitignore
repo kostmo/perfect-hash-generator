@@ -1,0 +1,5 @@
+dist
+*.tix
+.hpc
+*.cabal
+.dir-locals.el
