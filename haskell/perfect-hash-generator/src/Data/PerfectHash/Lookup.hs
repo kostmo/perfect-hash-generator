@@ -1,7 +1,7 @@
 {-# OPTIONS_HADDOCK prune #-}
 
 -- | Note that what is referred to as a \"nonce\" in this library may be
--- better known as <https://en.wikipedia.org/wiki/Salt_(cryptography) \"salt\">.
+-- better known as a \"<https://en.wikipedia.org/wiki/Salt_(cryptography) salt>\".
 module Data.PerfectHash.Lookup (
     LookupTable (LookupTable, nonces, values)
   , size
