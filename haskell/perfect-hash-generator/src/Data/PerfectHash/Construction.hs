@@ -10,11 +10,11 @@
 -- This Haskell implementation is transliterated from that refactoring.
 module Data.PerfectHash.Construction (
     createMinimalPerfectHash
-  , Defaultable
   ) where
 
 import           Control.Arrow            (second)
 import           Control.Monad            (join)
+import           Data.Default             (Default, def)
 import           Data.Foldable            (foldl')
 import           Data.Hashable            (Hashable)
 import           Data.HashMap.Strict      (HashMap)
@@ -41,23 +41,15 @@ emptyLookupTable :: LookupTable a
 emptyLookupTable = NewLookupTable HashMap.empty HashMap.empty
 
 
--- | Used to fill empty slots when promoting a HashMap to a Vector
-class Defaultable a where
-  getDefault :: a
-
-instance Defaultable Int where
-  getDefault = 0
-
-
 data HashMapAndSize a b = HashMapAndSize (HashMap a b) Int
 
 
-convertToVector :: (Vector.Unbox a, Defaultable a) => LookupTable a -> Lookup.LookupTable a
+convertToVector :: (Vector.Unbox a, Default a) => LookupTable a -> Lookup.LookupTable a
 convertToVector x = Lookup.LookupTable a1 a2
   where
     size = length $ vals x
     a1 = Vector.generate size (\z -> HashMap.lookupDefault 0 z $ redirs x)
-    a2 = Vector.generate size (\z -> HashMap.lookupDefault getDefault z $ vals x)
+    a2 = Vector.generate size (\z -> HashMap.lookupDefault def z $ vals x)
 
 
 -- | Computes a slot in the destination array (Data.PerfectHash.Lookup.values)
@@ -184,7 +176,7 @@ preliminaryBucketPlacement words_dict =
 -- The values may be of arbitrary type.
 --
 -- A 'HashMap' is required as input to guarantee that there are no duplicate keys.
-createMinimalPerfectHash :: (Vector.Unbox b, Defaultable b, Hashing.ToHashableChunks a, Eq a, Hashable a) =>
+createMinimalPerfectHash :: (Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Eq a, Hashable a) =>
      HashMap a b -- ^ key-value pairs
   -> Lookup.LookupTable b
      -- ^ output for use by 'LookupTable.lookup' or a custom code generator

@@ -2,6 +2,7 @@
 
 module Main where
 
+import           Data.Default                   (Default)
 import           Data.Either                    (isRight)
 import           Data.Hashable                  (Hashable)
 import           Data.HashMap.Strict            (HashMap)
@@ -52,7 +53,7 @@ intMapTuples = HashMap.fromList $ zip [
   ] [1..]
 
 
-testHashLookups :: (Show a, Show b, Eq b, Vector.Unbox b, Construction.Defaultable b, Hashing.ToHashableChunks a, Eq a, Hashable a) =>
+testHashLookups :: (Show a, Show b, Eq b, Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Eq a, Hashable a) =>
      HashMap a b
   -> IO ()
 testHashLookups word_index_tuples =

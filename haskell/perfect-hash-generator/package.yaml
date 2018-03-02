@@ -89,6 +89,7 @@ library:
   source-dirs: src
   dependencies:
   - containers
+  - data-default
   - data-ordlist
   - directory
   - filepath
@@ -127,6 +128,7 @@ tests:
     dependencies:
     - perfect-hash-generator
     - optparse-applicative
+    - data-default
     - test-framework
     - HUnit
     - test-framework-hunit
