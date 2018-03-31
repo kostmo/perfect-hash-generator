@@ -60,7 +60,7 @@ testHashLookups word_index_tuples =
   assertBool "Perfect hash lookups failed to match the input" $ isRight test_result_either
   where
     lookup_table = Construction.createMinimalPerfectHash word_index_tuples
-    test_result_either = Exercise.testLookups lookup_table word_index_tuples
+    test_result_either = Exercise.testPerfectLookups lookup_table word_index_tuples
 
 
 tests = [

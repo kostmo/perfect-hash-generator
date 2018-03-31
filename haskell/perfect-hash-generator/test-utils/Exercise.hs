@@ -4,6 +4,7 @@ module Exercise where
 
 import           Control.Monad            (unless)
 import           Data.Foldable            (traverse_)
+import           Data.Hashable            (Hashable)
 import           Data.HashMap.Strict      (HashMap)
 import qualified Data.HashMap.Strict      as HashMap
 import qualified Data.Vector.Unboxed      as Vector
@@ -12,11 +13,12 @@ import qualified Data.PerfectHash.Hashing as Hashing
 import qualified Data.PerfectHash.Lookup  as Lookup
 
 
-testLookups :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b) =>
-     Lookup.LookupTable b
+-- | genericized to facilitate benchmarking
+testLookupsHelper :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b) =>
+     (a -> b) -- ^ lookup function
   -> HashMap a b
   -> Either String ()
-testLookups lookup_table =
+testLookupsHelper lookup_function =
   traverse_ check_entry . HashMap.toList
   where
     check_entry (word, source_index) = unless (lookup_result == source_index) $
@@ -29,7 +31,20 @@ testLookups lookup_table =
         , show source_index
         ]
       where
-        lookup_result = Lookup.lookup lookup_table word
+        lookup_result = lookup_function word
+
+
+testHashMapLookups :: (Show b, Eq b, Show a, Eq a, Hashable a, Hashing.ToHashableChunks a, Vector.Unbox b) =>
+     HashMap a b
+  -> Either String ()
+testHashMapLookups hash_map = testLookupsHelper (\x -> HashMap.lookupDefault (error "not found") x hash_map) hash_map
+
+
+testPerfectLookups :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b) =>
+     Lookup.LookupTable b
+  -> HashMap a b
+  -> Either String ()
+testPerfectLookups = testLookupsHelper . Lookup.lookup
 
 
 -- | Generate a map of words from a file to their line numbers.

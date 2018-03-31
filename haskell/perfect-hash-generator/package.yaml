@@ -21,8 +21,10 @@ The output of this tool is a pair of arrays that can be included in generated
 C code for __<https://en.wikipedia.org/wiki/C_dynamic_memory_allocation allocation-free> hash tables__.
 
 
-Though lookups also perform reasonably well for Haskell applications, it
-hasn''t been benchmarked thorougly with respect to other data structures.
+Though conceivably this data structure could be used directly in Haskell
+applications as a read-only hash table, it is not recommened, as
+lookups are about 10x slower than
+<https://hackage.haskell.org/package/unordered-containers/docs/Data-HashMap-Strict.html#t:HashMap HashMap>.
 
 
 This implementation was adapted from <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov''s Blog>.

@@ -10,6 +10,8 @@ import qualified Data.PerfectHash.Construction as Construction
 import qualified Data.PerfectHash.Lookup       as Lookup
 import qualified Data.Vector.Unboxed           as Vector
 import qualified Exercise
+import           System.CPUTime
+import           Text.Printf
 
 
 valueCount = 250000
@@ -58,11 +60,31 @@ main = do
     ]
 
   let direct_mapping_nonces = Vector.filter (< 0) $ Lookup.nonces lookup_table
+      direct_mapping_count = Vector.length direct_mapping_nonces
+      total_count = length intMapTuples
+      direct_mapping_percentage = 100 * direct_mapping_count `div` total_count
 
   putStrLn $ unwords [
       "There were"
     , show $ Vector.length direct_mapping_nonces
+    , "(" ++ show direct_mapping_percentage ++ "%)"
     , "lookup entries with direct mappings."
     ]
 
-  Exercise.eitherExit $ Exercise.testLookups lookup_table intMapTuples
+  putStrLn "Testing perfect hash lookups..."
+  start1 <- getCPUTime
+  Exercise.eitherExit $ Exercise.testPerfectLookups lookup_table intMapTuples
+  end1   <- getCPUTime
+
+  let diff1 = fromIntegral (end1 - start1) / (10^12)
+  putStrLn $ printf "Computation time: %0.3f sec\n" (diff1 :: Double)
+
+  putStrLn "Testing HashMap lookups..."
+  start2 <- getCPUTime
+  Exercise.eitherExit $ Exercise.testHashMapLookups intMapTuples
+  end2   <- getCPUTime
+
+  let diff2 = fromIntegral (end2 - start2) / (10^12)
+  putStrLn $ printf "Computation time: %0.3f sec\n" (diff2 :: Double)
+
+  putStrLn "Done."
