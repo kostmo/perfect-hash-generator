@@ -14,7 +14,7 @@ module Data.PerfectHash.Hashing where
 
 import           Data.Binary          (encode)
 import           Data.Bits            (xor, (.&.))
-import           Data.ByteString.Lazy (unpack)
+import qualified Data.ByteString.Lazy as B (unpack)
 import           Data.Char            (ord)
 import           Data.Foldable        (foldl')
 import           Data.Text            (Text)
@@ -37,13 +37,13 @@ class ToHashableChunks a where
   toHashableChunks :: a -> [Int]
 
 instance ToHashableChunks Int where
-  toHashableChunks = map fromIntegral . unpack . encode
-
-instance ToHashableChunks Text where
-  toHashableChunks = map ord . T.unpack
+  toHashableChunks = map fromIntegral . B.unpack . encode
 
 instance ToHashableChunks String where
   toHashableChunks = map ord
+
+instance ToHashableChunks Text where
+  toHashableChunks = toHashableChunks . T.unpack
 
 
 hashToSlot :: ToHashableChunks a =>
