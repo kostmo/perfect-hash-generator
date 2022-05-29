@@ -1,4 +1,4 @@
-#!/usr/bin/python -tt
+#!/usr/bin/env -S python3 -tt
 
 # Easy Perfect Minimal Hashing 
 # By Steve Hanov. Released to the public domain.
@@ -120,7 +120,7 @@ def preliminary_bucket_placement( words_dict ):
 
     buckets = [ [] for i in range(size) ]
 
-    for key in words_dict.keys():
+    for key in list(words_dict.keys()):
         bucket_slot = hash(0, key) % size
         buckets[bucket_slot].append( key )
 
@@ -194,13 +194,13 @@ def PerfectHashLookup( G, V, key ):
 
 
 def demoHashingFunction( word_to_hash ):
-   print 'HASH of "%s": %d' % (word_to_hash, hash( 0, word_to_hash ))
+   print('HASH of "%s": %d' % (word_to_hash, hash( 0, word_to_hash )))
 
 
 
 if __name__ == "__main__":
 
-    print "Reading words"
+    print("Reading words")
     words_dict = {}
 
 
@@ -209,13 +209,13 @@ if __name__ == "__main__":
             words_dict[key.strip()] = line_index + 1
 
 
-    print "Creating perfect hash..."
+    print("Creating perfect hash...")
     (G, V) = CreateMinimalPerfectHash( words_dict )
 
 
     recreated_words_dict = {}
 
-    for word, actual_line_index in words_dict.items():
+    for word, actual_line_index in list(words_dict.items()):
         perfect_line_index = PerfectHashLookup( G, V, word )
 
         if actual_line_index != perfect_line_index:
