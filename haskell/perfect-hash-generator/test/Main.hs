@@ -18,8 +18,9 @@ import qualified Data.PerfectHash.Hashing       as Hashing
 import qualified Exercise
 
 
-testHashComputation :: (Hashing.ToHashableChunks a, Show a) =>
-     a
+testHashComputation
+  :: (Hashing.ToHashableChunks a, Show a)
+  => a
   -> Int
   -> IO ()
 testHashComputation key val =
@@ -29,32 +30,40 @@ testHashComputation key val =
     computed_hash = Hashing.hash 0 key
 
 
+mkInputs
+  :: (Eq a, Hashable a)
+  => [a]
+  -> HashMap a Int
+mkInputs inputs = HashMap.fromList $ zip inputs [1..]
+
+
 wordIndexTuplesString :: HashMap String Int
-wordIndexTuplesString = HashMap.fromList $ zip [
+wordIndexTuplesString = mkInputs [
     "apple"
   , "banana"
   , "carrot"
-  ] [1..]
+  ]
 
 
 wordIndexTuplesText :: HashMap Text Int
-wordIndexTuplesText = HashMap.fromList $ zip [
+wordIndexTuplesText = mkInputs [
     "alpha"
   , "beta"
   , "gamma"
-  ] [1..]
+  ]
 
 
 intMapTuples :: HashMap Int Int
-intMapTuples = HashMap.fromList $ zip [
+intMapTuples = mkInputs [
     1000
   , 5555
   , 9876
-  ] [1..]
+  ]
 
 
-testHashLookups :: (Show a, Show b, Eq b, Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Eq a, Hashable a) =>
-     HashMap a b
+testHashLookups
+  :: (Show a, Show b, Eq b, Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Eq a, Hashable a)
+  => HashMap a b
   -> IO ()
 testHashLookups word_index_tuples =
   assertBool "Perfect hash lookups failed to match the input" $ isRight test_result_either

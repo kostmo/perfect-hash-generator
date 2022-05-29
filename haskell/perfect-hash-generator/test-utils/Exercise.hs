@@ -14,8 +14,9 @@ import qualified Data.PerfectHash.Lookup  as Lookup
 
 
 -- | genericized to facilitate benchmarking
-testLookupsHelper :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b) =>
-     (a -> b) -- ^ lookup function
+testLookupsHelper
+  :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b)
+  => (a -> b) -- ^ lookup function
   -> HashMap a b
   -> Either String ()
 testLookupsHelper lookup_function =
@@ -34,14 +35,18 @@ testLookupsHelper lookup_function =
         lookup_result = lookup_function word
 
 
-testHashMapLookups :: (Show b, Eq b, Show a, Eq a, Hashable a, Hashing.ToHashableChunks a, Vector.Unbox b) =>
-     HashMap a b
+testHashMapLookups
+  :: (Show b, Eq b, Show a, Eq a, Hashable a, Hashing.ToHashableChunks a, Vector.Unbox b)
+  => HashMap a b
   -> Either String ()
-testHashMapLookups hash_map = testLookupsHelper (\x -> HashMap.lookupDefault (error "not found") x hash_map) hash_map
+testHashMapLookups hash_map = testLookupsHelper
+  (\x -> HashMap.lookupDefault (error "not found") x hash_map)
+  hash_map
 
 
-testPerfectLookups :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b) =>
-     Lookup.LookupTable b
+testPerfectLookups
+  :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b)
+  => Lookup.LookupTable b
   -> HashMap a b
   -> Either String ()
 testPerfectLookups = testLookupsHelper . Lookup.lookup
@@ -53,8 +58,7 @@ testPerfectLookups = testLookupsHelper . Lookup.lookup
 wordsFromFile :: FilePath -> IO [(String, Int)]
 wordsFromFile path = do
   file_lines <- readFile path
-  let word_index_tuples = zip (lines file_lines) [1..]
-  return word_index_tuples
+  return $ zip (lines file_lines) [1..]
 
 
 eitherExit :: Either String b -> IO ()

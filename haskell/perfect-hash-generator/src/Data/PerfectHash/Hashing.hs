@@ -2,7 +2,6 @@
 
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE Safe                 #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 
 -- | Implements the specialized hash function for
@@ -21,6 +20,11 @@ import           Data.Text            (Text)
 import qualified Data.Text            as T
 
 
+type Hash = Int
+
+type Nonce = Int
+
+
 -- | This choice of prime number @0x01000193@ was taken from the Python implementation
 -- on <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's page>.
 primeFNV :: Int
@@ -34,7 +38,7 @@ mask32bits = 0xffffffff
 -- | Mechanism for a key to be decomposed into units processable by the
 -- <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV-1a> hashing algorithm.
 class ToHashableChunks a where
-  toHashableChunks :: a -> [Int]
+  toHashableChunks :: a -> [Hash]
 
 instance ToHashableChunks Int where
   toHashableChunks = map fromIntegral . B.unpack . encode
@@ -47,11 +51,11 @@ instance ToHashableChunks Text where
 
 
 hashToSlot :: ToHashableChunks a =>
-     Int -- ^ nonce
-  -> a -- ^ key
+     Nonce -- ^ nonce
   -> Int -- ^ array size
-  -> Int
-hashToSlot nonce key size = hash nonce key `mod` size
+  -> a -- ^ key
+  -> Hash
+hashToSlot nonce size key = hash nonce key `mod` size
 
 
 -- | Uses the \"FNV-1a\" algorithm from the
@@ -67,9 +71,9 @@ hashToSlot nonce key size = hash nonce key `mod` size
 -- <https://hackage.haskell.org/package/hashable-1.2.6.1/docs/Data-Hashable.html#v:hashWithSalt hashWithSalt>
 -- function from the @hashable@ package.
 hash :: ToHashableChunks a =>
-     Int -- ^ nonce
+     Nonce -- ^ nonce
   -> a -- ^ key
-  -> Int
+  -> Hash
 hash nonce =
 
   -- NOTE: This must be 'foldl', not 'foldr'

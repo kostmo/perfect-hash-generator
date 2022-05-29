@@ -16,6 +16,9 @@ import           Prelude                  hiding (lookup)
 import qualified Data.PerfectHash.Hashing as Hashing
 
 
+type Size = Int
+
+
 -- | Inputs for the lookup function.
 --
 -- There are two arrays used in successive stages of the lookup.
@@ -41,7 +44,7 @@ data LookupTable a = LookupTable {
   }
 
 
-size :: Vector.Unbox a => LookupTable a -> Int
+size :: Vector.Unbox a => LookupTable a -> Size
 size = Vector.length . values
 
 
@@ -68,8 +71,9 @@ encodeDirectEntry = subtract 1 . negate
 --           respect to the length of the 'values' array.
 --
 --     3. Use the result of (2) as the index into the 'values' array.
-lookup :: (Hashing.ToHashableChunks a, Vector.Unbox b) =>
-     LookupTable b
+lookup
+  :: (Hashing.ToHashableChunks a, Vector.Unbox b)
+  => LookupTable b
   -> a -- ^ key
   -> b -- ^ value
 lookup lookup_table key =
@@ -79,10 +83,10 @@ lookup lookup_table key =
   where
     table_size = size lookup_table
 
-    nonce_index = Hashing.hashToSlot 0 key table_size
+    nonce_index = Hashing.hashToSlot 0 table_size key
     nonce = nonces lookup_table ! nonce_index
 
     -- Negative value indicates that we don't need extra lookup layer
     v_key = if nonce < 0
       then encodeDirectEntry nonce
-      else Hashing.hashToSlot nonce key table_size
+      else Hashing.hashToSlot nonce table_size key

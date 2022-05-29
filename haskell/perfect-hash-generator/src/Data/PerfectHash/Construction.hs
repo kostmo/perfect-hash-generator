@@ -12,7 +12,6 @@ module Data.PerfectHash.Construction (
     createMinimalPerfectHash
   ) where
 
-import           Control.Arrow            (second)
 import           Control.Monad            (join)
 import           Data.Default             (Default, def)
 import           Data.Foldable            (foldl')
@@ -24,9 +23,12 @@ import qualified Data.IntSet              as IntSet
 import           Data.List                (sortOn)
 import           Data.Ord                 (Down (Down))
 import qualified Data.Vector.Unboxed      as Vector
+import qualified Data.Maybe               as Maybe
 
 import qualified Data.PerfectHash.Hashing as Hashing
-import qualified Data.PerfectHash.Lookup  as Lookup
+import Data.PerfectHash.Hashing (Hash, Nonce)
+import qualified Data.PerfectHash.Lookup as Lookup
+import Data.PerfectHash.Lookup (Size)
 
 
 -- | NOTE: Vector may peform better for these structures, but
@@ -38,18 +40,23 @@ data LookupTable a = NewLookupTable {
 
 
 emptyLookupTable :: LookupTable a
-emptyLookupTable = NewLookupTable HashMap.empty HashMap.empty
+emptyLookupTable = NewLookupTable mempty mempty
 
 
-data HashMapAndSize a b = HashMapAndSize (HashMap a b) Int
+data HashMapAndSize a b = HashMapAndSize (HashMap a b) Size
 
 
-convertToVector :: (Vector.Unbox a, Default a) => LookupTable a -> Lookup.LookupTable a
+convertToVector
+  :: (Vector.Unbox a, Default a)
+  => LookupTable a
+  -> Lookup.LookupTable a
 convertToVector x = Lookup.LookupTable a1 a2
   where
     size = length $ vals x
-    a1 = Vector.generate size (\z -> HashMap.lookupDefault 0 z $ redirs x)
-    a2 = Vector.generate size (\z -> HashMap.lookupDefault def z $ vals x)
+    vectorize defaultVal =
+      Vector.generate size . flip (HashMap.lookupDefault defaultVal)
+    a1 = vectorize 0 $ redirs x
+    a2 = vectorize def $ vals x
 
 
 -- | Computes a slot in the destination array (Data.PerfectHash.Lookup.values)
@@ -59,14 +66,19 @@ convertToVector x = Lookup.LookupTable a1 a2
 --
 -- This function is able to fail fast if one of the elements of the bucket
 -- yields a collision with the new nonce.
-attemptNonceRecursive :: Hashing.ToHashableChunks a =>
-     HashMapAndSize Int b
-  -> Int -- ^ nonce
+attemptNonceRecursive
+  :: Hashing.ToHashableChunks a
+  => HashMapAndSize Int b
+  -> Nonce -- ^ nonce
   -> IntSet -- ^ occupied slots
   -> [a] -- ^ keys
   -> [Maybe Int]
 attemptNonceRecursive _ _ _ [] = []
-attemptNonceRecursive values_and_size nonce occupied_slots (current_key:remaining_bucket_keys) =
+attemptNonceRecursive
+    values_and_size
+    nonce
+    occupied_slots
+    (current_key:remaining_bucket_keys) =
 
   if cannot_use_slot
     then pure Nothing
@@ -74,7 +86,7 @@ attemptNonceRecursive values_and_size nonce occupied_slots (current_key:remainin
 
   where
     HashMapAndSize values size = values_and_size
-    slot = Hashing.hashToSlot nonce current_key size
+    slot = Hashing.hashToSlot nonce size current_key
 
     cannot_use_slot = IntSet.member slot occupied_slots || HashMap.member slot values
 
@@ -90,16 +102,20 @@ attemptNonceRecursive values_and_size nonce occupied_slots (current_key:remainin
 --
 -- Keeps trying forever, incrementing the candidate nonce by @1@ each time.
 -- Theoretically we're guaranteed to eventually find a solution.
-findNonceForBucket :: Hashing.ToHashableChunks a =>
-     Int -- ^ nonce to attempt
+findNonceForBucket
+  :: Hashing.ToHashableChunks a
+  => Nonce -- ^ nonce to attempt
   -> HashMapAndSize Int b
   -> [a] -- ^ colliding keys for this bucket
-  -> ([(Int, a)], Int) -- ^ slots for each bucket, with the current nonce attempt
+  -> ([(Hash, a)], Nonce) -- ^ slots for each bucket, with the current nonce attempt
 findNonceForBucket nonce_attempt values_and_size bucket =
 
   maybe recursive_result (\x -> (zip x bucket, nonce_attempt)) maybe_attempt_result
   where
-    recursive_result = findNonceForBucket (nonce_attempt + 1) values_and_size bucket
+    recursive_result = findNonceForBucket
+      (nonce_attempt + 1)
+      values_and_size bucket
+
     maybe_attempt_result = sequenceA $ attemptNonceRecursive
       values_and_size
       nonce_attempt
@@ -110,10 +126,11 @@ findNonceForBucket nonce_attempt values_and_size bucket =
 -- | Searches for a nonce for this bucket, starting with the value @1@,
 -- until one is found that results in no collisions for both this bucket
 -- and all previous buckets.
-handleMultiBuckets :: (Hashing.ToHashableChunks a, Eq a, Hashable a) =>
-     HashMapAndSize a b
+handleMultiBuckets
+  :: (Hashing.ToHashableChunks a, Eq a, Hashable a)
+  => HashMapAndSize a b
   -> LookupTable b
-  -> (Int, [a])
+  -> (Hash, [a])
   -> LookupTable b
 handleMultiBuckets sized_words_dict old_lookup_table (computed_hash, bucket) =
   NewLookupTable new_g new_values_dict
@@ -124,19 +141,20 @@ handleMultiBuckets sized_words_dict old_lookup_table (computed_hash, bucket) =
     (slots_for_bucket, nonce) = findNonceForBucket 1 sized_vals_dict bucket
 
     new_g = HashMap.insert computed_hash nonce $ redirs old_lookup_table
-    new_values_dict = foldr fold_func (vals old_lookup_table) slots_for_bucket
+    new_values_dict = foldr f (vals old_lookup_table) slots_for_bucket
 
-    fold_func (slot_val, bucket_val) = HashMap.insert slot_val $
+    f (slot_val, bucket_val) = HashMap.insert slot_val $
       HashMap.lookupDefault (error "not found") bucket_val words_dict
 
 
 -- | This function exploits the sorted structure of the list twice,
 -- first by skimming the multi-entry buckets, then by skimming
 -- the single-entry buckets and dropping the empty buckets.
-findCollisionNonces :: (Hashing.ToHashableChunks a, Eq a, Hashable a) =>
-     HashMapAndSize a b
-  -> [(Int, [a])]
-  -> (LookupTable b, [(Int, a)])
+findCollisionNonces
+  :: (Hashing.ToHashableChunks a, Eq a, Hashable a)
+  => HashMapAndSize a b
+  -> [(Hash, [a])]
+  -> (LookupTable b, [(Hash, a)])
 findCollisionNonces sized_words_dict sorted_bucket_hash_tuples =
 
   (lookup_table, remaining_words)
@@ -145,27 +163,35 @@ findCollisionNonces sized_words_dict sorted_bucket_hash_tuples =
     -- Since the buckets have been sorted by descending size,
     -- once we get to the bucket with 1 or fewer elements,
     -- we know there are no more collision buckets.
-    (multi_entry_buckets, single_or_fewer_buckets) = span ((> 1) . length . snd) sorted_bucket_hash_tuples
+    (multi_entry_buckets, single_or_fewer_buckets) =
+      span ((> 1) . length . snd) sorted_bucket_hash_tuples
 
     -- XXX Using 'foldl' rather than 'foldr' is crucial here, given the order
     -- of the buckets. 'foldr' would actually try to place the smallest buckets
     -- first, making it improbable that the large buckets will be placeable,
     -- and potentially resulting in an infinite loop.
-    lookup_table = foldl' (handleMultiBuckets sized_words_dict) emptyLookupTable multi_entry_buckets
+    lookup_table = foldl'
+      (handleMultiBuckets sized_words_dict)
+      emptyLookupTable
+      multi_entry_buckets
 
-    single_entry_buckets = takeWhile (not . null . snd) single_or_fewer_buckets
-    remaining_words = map (second head) single_entry_buckets
+    remaining_words = Maybe.mapMaybe
+      (traverse Maybe.listToMaybe)
+      single_or_fewer_buckets
 
 
 -- | Sort buckets by descending size
-preliminaryBucketPlacement :: (Hashing.ToHashableChunks a, Eq a, Hashable a) =>
-     HashMap a b
-  -> [(Int, [a])]
+preliminaryBucketPlacement
+  :: (Hashing.ToHashableChunks a, Eq a, Hashable a)
+  => HashMap a b
+  -> [(Hash, [a])]
 preliminaryBucketPlacement words_dict =
   sortOn (Down . length . snd) bucket_hash_tuples
   where
     size = HashMap.size words_dict
-    slot_key_pairs = deriveTuples (\k -> Hashing.hashToSlot 0 k size) $ HashMap.keys words_dict
+    slot_key_pairs = deriveTuples
+      (Hashing.hashToSlot 0 size) $
+        HashMap.keys words_dict
 
     bucket_hash_tuples = HashMap.toList $ binTuplesBySecond slot_key_pairs
 
@@ -175,9 +201,11 @@ preliminaryBucketPlacement words_dict =
 -- The keys must be instances of 'Hashing.ToHashableChunks'.
 -- The values may be of arbitrary type.
 --
--- A 'HashMap' is required as input to guarantee that there are no duplicate keys.
-createMinimalPerfectHash :: (Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Eq a, Hashable a) =>
-     HashMap a b -- ^ key-value pairs
+-- A 'HashMap' is required as input to guarantee that there are
+-- no duplicate keys.
+createMinimalPerfectHash
+  :: (Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Eq a, Hashable a)
+  => HashMap a b -- ^ key-value pairs
   -> Lookup.LookupTable b
      -- ^ output for use by 'LookupTable.lookup' or a custom code generator
 createMinimalPerfectHash words_dict =
@@ -191,25 +219,39 @@ createMinimalPerfectHash words_dict =
       (HashMapAndSize words_dict size)
       sorted_bucket_hash_tuples
 
-    unused_slots = filter (not . (`HashMap.member` vals intermediate_lookup_table)) [0..(size - 1)]
+    unused_slots = filter
+      (not . (`HashMap.member` vals intermediate_lookup_table))
+      [0..(size - 1)]
 
-    zipped_remaining_with_unused_slots = zip remaining_word_hash_tuples unused_slots
+    zipped_remaining_with_unused_slots =
+      zip remaining_word_hash_tuples unused_slots
 
     -- We subtract one to ensure it's negative even if the zeroeth slot was used.
-    f1 ((computed_hash, _), free_slot_index) = HashMap.insert computed_hash $ Lookup.encodeDirectEntry free_slot_index
-    final_g = foldr f1 (redirs intermediate_lookup_table) zipped_remaining_with_unused_slots
+    f1 ((computed_hash, _), free_slot_index) =
+      HashMap.insert computed_hash $ Lookup.encodeDirectEntry free_slot_index
+
+    final_g = foldr
+      f1
+      (redirs intermediate_lookup_table)
+      zipped_remaining_with_unused_slots
 
     f2 ((_, word), free_slot_index) = HashMap.insert free_slot_index $
       HashMap.lookupDefault (error "Impossible!") word words_dict
 
-    final_values = foldr f2 (vals intermediate_lookup_table) zipped_remaining_with_unused_slots
+    final_values = foldr
+      f2
+      (vals intermediate_lookup_table)
+      zipped_remaining_with_unused_slots
 
 
 -- * Utilities
 
 -- | Place the first elements of the tuples into bins according to the second
 -- element.
-binTuplesBySecond :: (Eq b, Hashable b) => [(a, b)] -> HashMap.HashMap b [a]
+binTuplesBySecond
+  :: (Eq b, Hashable b)
+  => [(a, b)]
+  -> HashMap.HashMap b [a]
 binTuplesBySecond = foldr f HashMap.empty
   where
     f tuple = HashMap.insertWith (++) (snd tuple) [fst tuple]
