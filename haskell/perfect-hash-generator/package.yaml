@@ -110,6 +110,7 @@ executables:
     - optparse-applicative
     - vector
     - hashable
+    - containers
   hash-perfectly-ints-demo:
     main: Main.hs
     source-dirs:
@@ -137,3 +138,4 @@ tests:
     - test-framework-hunit
     - hashable
     - vector
+    - containers

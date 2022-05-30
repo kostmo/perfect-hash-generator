@@ -4,9 +4,8 @@ module Exercise where
 
 import           Control.Monad            (unless)
 import           Data.Foldable            (traverse_)
-import           Data.Hashable            (Hashable)
-import           Data.HashMap.Strict      (HashMap)
-import qualified Data.HashMap.Strict      as HashMap
+import qualified Data.Map as Map
+import           Data.Map                 (Map)
 import qualified Data.Vector.Unboxed      as Vector
 
 import qualified Data.PerfectHash.Hashing as Hashing
@@ -17,10 +16,10 @@ import qualified Data.PerfectHash.Lookup  as Lookup
 testLookupsHelper
   :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b)
   => (a -> b) -- ^ lookup function
-  -> HashMap a b
+  -> Map a b
   -> Either String ()
 testLookupsHelper lookup_function =
-  traverse_ check_entry . HashMap.toList
+  traverse_ check_entry . Map.toList
   where
     check_entry (word, source_index) = unless (lookup_result == source_index) $
       Left $ unwords [
@@ -36,18 +35,18 @@ testLookupsHelper lookup_function =
 
 
 testHashMapLookups
-  :: (Show b, Eq b, Show a, Eq a, Hashable a, Hashing.ToHashableChunks a, Vector.Unbox b)
-  => HashMap a b
+  :: (Show b, Eq b, Show a, Ord a, Hashing.ToHashableChunks a, Vector.Unbox b)
+  => Map a b
   -> Either String ()
 testHashMapLookups hash_map = testLookupsHelper
-  (\x -> HashMap.lookupDefault (error "not found") x hash_map)
+  (\x -> Map.findWithDefault (error "not found") x hash_map)
   hash_map
 
 
 testPerfectLookups
   :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b)
   => Lookup.LookupTable b
-  -> HashMap a b
+  -> Map a b
   -> Either String ()
 testPerfectLookups = testLookupsHelper . Lookup.lookup
 

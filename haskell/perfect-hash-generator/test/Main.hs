@@ -4,9 +4,8 @@ module Main where
 
 import           Data.Default                   (Default)
 import           Data.Either                    (isRight)
-import           Data.Hashable                  (Hashable)
-import           Data.HashMap.Strict            (HashMap)
-import qualified Data.HashMap.Strict            as HashMap
+import qualified Data.Map as Map
+import           Data.Map                 (Map)
 import           Data.Text                      (Text)
 import qualified Data.Vector.Unboxed            as Vector
 import           Test.Framework                 (defaultMain, testGroup)
@@ -31,13 +30,13 @@ testHashComputation key val =
 
 
 mkInputs
-  :: (Eq a, Hashable a)
+  :: Ord a
   => [a]
-  -> HashMap a Int
-mkInputs inputs = HashMap.fromList $ zip inputs [1..]
+  -> Map a Int
+mkInputs inputs = Map.fromList $ zip inputs [1..]
 
 
-wordIndexTuplesString :: HashMap String Int
+wordIndexTuplesString :: Map String Int
 wordIndexTuplesString = mkInputs [
     "apple"
   , "banana"
@@ -45,7 +44,7 @@ wordIndexTuplesString = mkInputs [
   ]
 
 
-wordIndexTuplesText :: HashMap Text Int
+wordIndexTuplesText :: Map Text Int
 wordIndexTuplesText = mkInputs [
     "alpha"
   , "beta"
@@ -53,7 +52,7 @@ wordIndexTuplesText = mkInputs [
   ]
 
 
-intMapTuples :: HashMap Int Int
+intMapTuples :: Map Int Int
 intMapTuples = mkInputs [
     1000
   , 5555
@@ -62,8 +61,8 @@ intMapTuples = mkInputs [
 
 
 testHashLookups
-  :: (Show a, Show b, Eq b, Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Eq a, Hashable a)
-  => HashMap a b
+  :: (Show a, Show b, Eq b, Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Ord a)
+  => Map a b
   -> IO ()
 testHashLookups word_index_tuples =
   assertBool "Perfect hash lookups failed to match the input" $ isRight test_result_either

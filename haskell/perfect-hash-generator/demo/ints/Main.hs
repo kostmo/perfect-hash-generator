@@ -2,8 +2,8 @@ module Main where
 
 import           System.Random                 (RandomGen, mkStdGen, random)
 
-import           Data.HashMap.Strict           (HashMap)
-import qualified Data.HashMap.Strict           as HashMap
+import qualified Data.Map as Map
+import           Data.Map                 (Map)
 import           Data.IntSet                   (IntSet)
 import qualified Data.IntSet                   as IntSet
 import qualified Data.PerfectHash.Construction as Construction
@@ -77,8 +77,8 @@ getUniqueRandomIntegers (RandIntAccum std_gen count current_set) =
       else a (count - 1) (IntSet.insert next_int current_set)
 
 
-mkIntMapTuples :: Int -> HashMap Int Int
-mkIntMapTuples valueCount = HashMap.fromList $ zip random_ints [1..]
+mkIntMapTuples :: Int -> Map Int Int
+mkIntMapTuples valueCount = Map.fromList $ zip random_ints [1..]
   where
     seed_value = RandIntAccum (mkStdGen 0) valueCount IntSet.empty
     random_ints = IntSet.toList $ getUniqueRandomIntegers seed_value

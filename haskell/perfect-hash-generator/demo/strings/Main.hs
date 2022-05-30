@@ -1,7 +1,7 @@
 module Main where
 
 import           Control.Monad                 (when)
-import qualified Data.HashMap.Strict           as HashMap
+import qualified Data.Map as Map
 import Options.Applicative
 import qualified Data.PerfectHash.Construction as Construction
 import qualified Data.PerfectHash.Lookup       as Lookup
@@ -48,7 +48,7 @@ run (DemoOptions dictionaryPath enableDebug) = do
     ]
 
   let lookup_table = Construction.createMinimalPerfectHash $
-        HashMap.fromList word_index_tuples
+        Map.fromList word_index_tuples
 
   putStrLn $ unwords [
       "Finished computing lookup table with"
@@ -61,4 +61,4 @@ run (DemoOptions dictionaryPath enableDebug) = do
     putStrLn $ unwords ["Vector V:", show $ Lookup.values lookup_table]
 
   Exercise.eitherExit $ Exercise.testPerfectLookups lookup_table $
-    HashMap.fromList word_index_tuples
+    Map.fromList word_index_tuples
