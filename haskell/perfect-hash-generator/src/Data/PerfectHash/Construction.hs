@@ -4,10 +4,22 @@
 --
 -- Implementation was adapted from
 -- <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's Blog>.
---
 -- A refactoring of that Python implementation may be found
 -- <https://github.com/kostmo/perfect-hash-generator/blob/master/python/perfect-hash.py here>.
 -- This Haskell implementation was transliterated and evolved from that refactoring.
+--
+-- = Overview of algorithm
+-- A two-input hash function @F(nonce, key)@ is used.
+--
+-- 1. Keys are hashed into buckets for the first round with a nonce of @0@.
+-- 1. Iterating over each bucket of size >= 2 in order of decreasing size, keep testing different nonce values such that all members
+--    of the bucket fall into open slots in the final array.
+--    When a successful nonce is found, write it to the \"intermediate\" array at the bucket's position.
+-- 1. For each bucket of size 1, select an arbitrary open slot in the final array, and write the slot's
+--    index (after negation and subtracting 1) to the intermediate array.
+--
+-- According to <http://cmph.sourceforge.net/papers/esa09.pdf this paper>,
+-- the algorithm is assured to run in linear time.
 module Data.PerfectHash.Construction (
     createMinimalPerfectHash
   ) where
@@ -152,8 +164,6 @@ findNonceForBucket nonce_attempt values_and_size bucket =
       bucket
 
 
-
-
 -- | Searches for a nonce for this bucket, starting with the value @1@,
 -- until one is found that results in no collisions for both this bucket
 -- and all previous buckets.
@@ -260,13 +270,16 @@ createMinimalPerfectHash words_dict =
 
     sorted_bucket_hash_tuples = preliminaryBucketPlacement words_dict
 
+    -- TODO: Rename this variable: "remaining_word_hash_tuples"
     (intermediate_lookup_table, remaining_word_hash_tuples) =
       findCollisionNonces
         (HashMapAndSize words_dict size)
         sorted_bucket_hash_tuples
 
+    isUnusedSlot = not . (`HashMap.member` vals intermediate_lookup_table)
+
     unused_slots = filter
-      (not . (`HashMap.member` vals intermediate_lookup_table))
+      isUnusedSlot
       [0..(size - 1)]
 
     zipped_remaining_with_unused_slots =
