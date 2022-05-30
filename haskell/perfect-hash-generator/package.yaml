@@ -97,6 +97,7 @@ library:
   - filepath
   - hashable
   - vector
+  - sorted-list
 executables:
   hash-perfectly-strings-demo:
     main: Main.hs

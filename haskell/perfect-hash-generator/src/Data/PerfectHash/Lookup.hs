@@ -16,15 +16,12 @@ import           Prelude                  hiding (lookup)
 import qualified Data.PerfectHash.Hashing as Hashing
 
 
-type Size = Int
-
-
 -- | Inputs for the lookup function.
 --
 -- There are two arrays used in successive stages of the lookup.
 -- In this implementation, both arrays are the same length.
 data LookupTable a = LookupTable {
-    nonces :: Vector Int
+    nonces :: Vector Hashing.Nonce
     -- ^ This is the intermediate lookup table.
     --
     -- In the lookup process, the key's hash is computed first with a nonce of
@@ -44,7 +41,7 @@ data LookupTable a = LookupTable {
   }
 
 
-size :: Vector.Unbox a => LookupTable a -> Size
+size :: Vector.Unbox a => LookupTable a -> Hashing.Size
 size = Vector.length . values
 
 

@@ -12,15 +12,51 @@ import qualified Data.Vector.Unboxed           as Vector
 import qualified Exercise
 import           System.CPUTime
 import           Text.Printf
+import Options.Applicative
 
 
-valueCount = 250000
+defaultValueCount :: Int
+defaultValueCount = 250000
+
+
+data DemoOptions = DemoOptions {
+    valueCount :: Int
+  , debugEnabled :: Bool
+  }
+
+
+optionsParser :: Parser DemoOptions
+optionsParser = DemoOptions
+  <$> option auto
+      ( long "count"
+      <> help "Value count"
+      <> value defaultValueCount)
+  <*> switch
+      ( long "debug"
+      <> help "enable debug mode")
+
+
+main :: IO ()
+main = run =<< execParser opts
+  where
+    opts = info (optionsParser <**> helper)
+      ( fullDesc
+     <> progDesc "Test the hashing on integers"
+     <> header "int test" )
 
 
 data RandIntAccum t = RandIntAccum
   t -- ^ random number generator
   Int -- ^ max count
   IntSet -- ^ accumulated unique random numbers
+
+
+doTimed :: Either String a -> IO Double
+doTimed go = do
+  start <- getCPUTime
+  Exercise.eitherExit go
+  end   <- getCPUTime
+  return $ fromIntegral (end - start) / (10^12)
 
 
 -- | Since computing the size of the set is O(N), we
@@ -41,15 +77,18 @@ getUniqueRandomIntegers (RandIntAccum std_gen count current_set) =
       else a (count - 1) (IntSet.insert next_int current_set)
 
 
-intMapTuples :: HashMap Int Int
-intMapTuples = HashMap.fromList $ zip random_ints [1..]
+mkIntMapTuples :: Int -> HashMap Int Int
+mkIntMapTuples valueCount = HashMap.fromList $ zip random_ints [1..]
   where
     seed_value = RandIntAccum (mkStdGen 0) valueCount IntSet.empty
     random_ints = IntSet.toList $ getUniqueRandomIntegers seed_value
 
 
-main = do
-  putStrLn $ unwords ["Keys size:", show $ length intMapTuples]
+run (DemoOptions valueCount _debugEnabled) = do
+  putStrLn $ unwords [
+      "Keys size:"
+    , show $ length intMapTuples
+    ]
 
   let lookup_table = Construction.createMinimalPerfectHash intMapTuples
 
@@ -72,19 +111,14 @@ main = do
     ]
 
   putStrLn "Testing perfect hash lookups..."
-  start1 <- getCPUTime
-  Exercise.eitherExit $ Exercise.testPerfectLookups lookup_table intMapTuples
-  end1   <- getCPUTime
-
-  let diff1 = fromIntegral (end1 - start1) / (10^12)
-  putStrLn $ printf "Computation time: %0.3f sec\n" (diff1 :: Double)
+  diff1 <- doTimed $ Exercise.testPerfectLookups lookup_table intMapTuples
+  putStrLn $ printf "Computation time: %0.3f sec\n" diff1
 
   putStrLn "Testing HashMap lookups..."
-  start2 <- getCPUTime
-  Exercise.eitherExit $ Exercise.testHashMapLookups intMapTuples
-  end2   <- getCPUTime
-
-  let diff2 = fromIntegral (end2 - start2) / (10^12)
-  putStrLn $ printf "Computation time: %0.3f sec\n" (diff2 :: Double)
+  diff2 <- doTimed $ Exercise.testHashMapLookups intMapTuples
+  putStrLn $ printf "Computation time: %0.3f sec\n" diff2
 
   putStrLn "Done."
+
+  where
+    intMapTuples = mkIntMapTuples valueCount
