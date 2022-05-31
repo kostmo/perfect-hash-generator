@@ -12,10 +12,13 @@
 -- A two-input hash function @F(nonce, key)@ is used.
 --
 -- 1. Keys are hashed into buckets for the first round with a nonce of @0@.
--- 1. Iterating over each bucket of size >= 2 in order of decreasing size, keep testing different nonce values such that all members
+-- 1. Iterating over each bucket of size >= 2 in order of decreasing size, keep
+--    testing different nonce values until all members
 --    of the bucket fall into open slots in the final array.
---    When a successful nonce is found, write it to the \"intermediate\" array at the bucket's position.
--- 1. For each bucket of size 1, select an arbitrary open slot in the final array, and write the slot's
+--    When a successful nonce is found, write it to the \"intermediate\" array
+--    at the bucket's position.
+-- 1. For each bucket of size 1, select an arbitrary open slot in the final
+--    array, and write the slot's
 --    index (after negation and subtracting 1) to the intermediate array.
 --
 -- According to <http://cmph.sourceforge.net/papers/esa09.pdf this paper>,
@@ -141,7 +144,7 @@ data PlacementAttempt a = PlacementAttempt Nonce [SingletonBucket a]
 -- | Repeatedly try different values of the nonce until we find a hash function
 -- that places all items in the bucket into free slots.
 --
--- Keeps trying forever, incrementing the candidate nonce by @1@ each time.
+-- Increment the candidate nonce by @1@ each time.
 -- Theoretically we're guaranteed to eventually find a solution.
 findNonceForBucket
   :: (Hashing.ToHashableChunks a)
@@ -151,7 +154,7 @@ findNonceForBucket
   -> PlacementAttempt a
 findNonceForBucket nonce_attempt values_and_size bucket =
 
-  -- This is a "lazy" way to specify recursion:
+  -- This is a "lazy" (and awkward) way to specify recursion:
   -- If the result ("result_for_this_iteration") at this iteration of the recursion
   -- is not "Nothing", then, wrap it in a "PlacementAttempt" record.
   -- Otherwise, descend one layer deeper by computing "recursive_result".

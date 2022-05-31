@@ -39,7 +39,7 @@ Integers are split by octets before hashing.
 
 > import Data.PerfectHash.Construction (createMinimalPerfectHash)
 
-> import qualified Data.HashMap.Strict as HashMap
+> import qualified Data.Map as Map
 
 >
 
@@ -55,13 +55,15 @@ Integers are split by octets before hashing.
 
 >
 
-> lookup_table = createMinimalPerfectHash $ HashMap.fromList tuples
+> lookup_table = createMinimalPerfectHash $ Map.fromList tuples
 
 
 Generation of C code based on the arrays in @lookup_table@ is left as an
 exercise to the reader. Algorithm documentation in the "Data.PerfectHash.Hashing"
 and "Data.PerfectHash.Lookup" modules will be helpful.
 
+
+= Demo
 
 See the @hash-perfectly-strings-demo@ and @hash-perfectly-ints-demo@, as well as the
 test suite, for working examples.
