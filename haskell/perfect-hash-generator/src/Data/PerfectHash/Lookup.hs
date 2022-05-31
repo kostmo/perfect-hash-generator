@@ -45,7 +45,7 @@ size :: Vector.Unbox a => LookupTable a -> Hashing.Size
 size = Vector.length . values
 
 
-encodeDirectEntry :: Int -> Int
+encodeDirectEntry :: Int -> Hashing.SlotIndex
 encodeDirectEntry = subtract 1 . negate
 
 

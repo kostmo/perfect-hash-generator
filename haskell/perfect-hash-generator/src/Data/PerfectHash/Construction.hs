@@ -104,7 +104,7 @@ attemptNonceRecursive
   -> Nonce
   -> IntSet -- ^ occupied slots
   -> [a] -- ^ keys
-  -> [Maybe Int]
+  -> [Maybe Hashing.SlotIndex]
 attemptNonceRecursive _ _ _ [] = []
 attemptNonceRecursive
     values_and_size
@@ -120,6 +120,7 @@ attemptNonceRecursive
     IntMapAndSize values size = values_and_size
     slot = Hashing.hashToSlot nonce size current_key
 
+    -- TODO: Create a record "SlotOccupation" to encapsulate the IntSet implementation
     cannot_use_slot = IntSet.member slot occupied_slots || IntMap.member slot values
 
     recursive_result = attemptNonceRecursive
@@ -139,7 +140,7 @@ data PlacementAttempt a = PlacementAttempt Nonce [SingletonBucket a]
 -- Keeps trying forever, incrementing the candidate nonce by @1@ each time.
 -- Theoretically we're guaranteed to eventually find a solution.
 findNonceForBucket
-  :: Hashing.ToHashableChunks a
+  :: (Hashing.ToHashableChunks a)
   => Nonce -- ^ nonce to attempt
   -> IntMapAndSize b
   -> [a] -- ^ colliding keys for this bucket
@@ -158,6 +159,10 @@ findNonceForBucket nonce_attempt values_and_size bucket =
   where
     f = PlacementAttempt nonce_attempt . flip (zipWith SingletonBucket) bucket
 
+    -- NOTE: attemptNonceRecursive returns a list of "Maybe SlotIndex"
+    -- records. If *any* of those elements are Nothing (that is, at
+    -- least one of the slots were not successfully placed), then
+    -- sequenceA of that list will become Nothing.
     result_for_this_iteration = sequenceA $ attemptNonceRecursive
       values_and_size
       nonce_attempt
@@ -186,15 +191,21 @@ handleMultiBuckets
 
   NewLookupTable new_g new_values_dict
   where
+    NewLookupTable old_g old_values_dict = old_lookup_table
+
     MapAndSize words_dict size = sized_words_dict
 
-    sized_vals_dict = IntMapAndSize (vals old_lookup_table) size
+    sized_vals_dict = IntMapAndSize old_values_dict size
 
+    -- This is assured to succeed; it starts with a nonce of 1
+    -- but keeps incrementing it until all of the keys in this
+    -- bucket are placeable.
     PlacementAttempt nonce slots_for_bucket =
       findNonceForBucket 1 sized_vals_dict bucket
 
-    new_g = IntMap.insert computed_hash nonce $ redirs old_lookup_table
-    new_values_dict = foldr f (vals old_lookup_table) slots_for_bucket
+    new_g = IntMap.insert computed_hash nonce old_g
+
+    new_values_dict = foldr f old_values_dict slots_for_bucket
 
     f (SingletonBucket slot_val bucket_val) = IntMap.insert slot_val $
       words_dict ! bucket_val 
@@ -262,7 +273,7 @@ preliminaryBucketPlacement words_dict =
 -- The keys must be instances of 'Hashing.ToHashableChunks'.
 -- The values may be of arbitrary type.
 --
--- A 'HashMap' is required as input to guarantee that there are
+-- A 'Map' is required as input to guarantee that there are
 -- no duplicate keys.
 createMinimalPerfectHash
   :: (Hashing.ToHashableChunks k, Ord k, Vector.Unbox v, Default v)

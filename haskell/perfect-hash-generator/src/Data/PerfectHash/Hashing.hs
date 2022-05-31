@@ -20,6 +20,9 @@ import           Data.Text            (Text)
 import qualified Data.Text            as T
 
 
+type SlotIndex = Int
+
+
 type Hash = Int
 
 type Nonce = Int
@@ -56,7 +59,7 @@ hashToSlot :: ToHashableChunks a =>
      Nonce -- ^ nonce
   -> Size -- ^ array size
   -> a -- ^ key
-  -> Hash
+  -> SlotIndex
 hashToSlot nonce size key = hash nonce key `mod` size
 
 
