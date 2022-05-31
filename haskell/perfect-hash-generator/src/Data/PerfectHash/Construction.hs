@@ -106,7 +106,7 @@ attemptNonceRecursive
   -> Nonce
   -> IntSet -- ^ occupied slots
   -> [a] -- ^ keys
-  -> [Maybe Hashing.SlotIndex]
+  -> [Maybe Int]  -- TODO Change to [Maybe Hashing.SlotIndex]
 attemptNonceRecursive _ _ _ [] = []
 attemptNonceRecursive
     values_and_size
@@ -120,7 +120,7 @@ attemptNonceRecursive
 
   where
     IntMapAndSize values size = values_and_size
-    slot = Hashing.hashToSlot nonce size current_key
+    Hashing.SlotIndex slot = Hashing.hashToSlot nonce size current_key
 
     -- TODO: Create a record "SlotOccupation" to encapsulate the IntSet implementation
     cannot_use_slot = IntSet.member slot occupied_slots || IntMap.member slot values
@@ -262,9 +262,12 @@ preliminaryBucketPlacement words_dict =
   toSortedList bucket_hash_tuples
   where
     size = Map.size words_dict
-    slot_key_pairs = deriveTuples
-      (Hashing.hashToSlot (Nonces.Nonce 0) size) $
-        Map.keys words_dict
+
+    f z = x
+      where
+        Hashing.SlotIndex x = Hashing.hashToSlot (Nonces.Nonce 0) size z
+
+    slot_key_pairs = deriveTuples f $ Map.keys words_dict
 
     bucket_hash_tuples = map (uncurry HashBucket) $
       IntMap.toList $ binTuplesBySecond slot_key_pairs
@@ -307,10 +310,11 @@ createMinimalPerfectHash words_dict =
     -- Note: We subtract one to ensure it's negative even if the
     -- zeroeth slot was used.
     f1 (SingletonBucket computed_hash _, free_slot_index) =
-      IntMap.insert computed_hash $
-        -- Observe here that both the output and input
-        -- are nonces:
-        Nonces.Nonce $ Lookup.encodeDirectEntry $
+      -- Observe here that both the output and input
+      -- are nonces:
+      IntMap.insert computed_hash $ Nonces.Nonce x
+      where
+        Hashing.SlotIndex x = Lookup.encodeDirectEntry $
           Nonces.Nonce free_slot_index
 
     final_g = foldr

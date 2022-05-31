@@ -22,7 +22,7 @@ import qualified Data.PerfectHash.Types.Nonces as Nonces
 import Data.PerfectHash.Types.Nonces (Nonce)
 
 
-type SlotIndex = Int
+newtype SlotIndex = SlotIndex Int
 
 type Hash = Int
 
@@ -53,7 +53,7 @@ hashToSlot :: ToHashableChunks a =>
   -> Size -- ^ array size
   -> a -- ^ key
   -> SlotIndex
-hashToSlot nonce size key = hash nonce key `mod` size
+hashToSlot nonce size key = SlotIndex $ hash nonce key `mod` size
 
 
 -- | The interface is comparable to the

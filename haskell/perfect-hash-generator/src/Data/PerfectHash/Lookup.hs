@@ -48,7 +48,7 @@ size = Vector.length . values
 
 
 encodeDirectEntry :: Nonce -> Hashing.SlotIndex
-encodeDirectEntry (Nonce val) = subtract 1 $ negate val
+encodeDirectEntry (Nonce val) = Hashing.SlotIndex $ subtract 1 $ negate val
 
 
 -- | For embedded applications, this function would usually be re-implemented
@@ -82,10 +82,10 @@ lookup lookup_table key =
   where
     table_size = size lookup_table
 
-    nonce_index = Hashing.hashToSlot (Nonce 0) table_size key
+    Hashing.SlotIndex nonce_index = Hashing.hashToSlot (Nonce 0) table_size key
     nonce = nonces lookup_table ! nonce_index
 
     -- Negative nonce value indicates that we don't need extra lookup layer
-    v_key = if Nonces.isDirectSlot nonce
+    Hashing.SlotIndex v_key = if Nonces.isDirectSlot nonce
       then encodeDirectEntry nonce
       else Hashing.hashToSlot nonce table_size key
