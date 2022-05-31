@@ -43,12 +43,13 @@ data LookupTable a = LookupTable {
   }
 
 
-size :: LookupTable a -> Hashing.Size
-size = Vector.length . values
+size :: LookupTable a -> Hashing.ArraySize
+size = Hashing.ArraySize . Vector.length . values
 
 
 encodeDirectEntry :: Nonce -> Hashing.SlotIndex
-encodeDirectEntry (Nonce val) = Hashing.SlotIndex $ subtract 1 $ negate val
+encodeDirectEntry (Nonce val) =
+  Hashing.SlotIndex $ subtract 1 $ negate val
 
 
 -- | For embedded applications, this function would usually be re-implemented

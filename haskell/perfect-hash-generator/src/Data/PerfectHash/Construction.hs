@@ -41,7 +41,7 @@ import qualified Data.Vector      as Vector
 import qualified Data.Maybe               as Maybe
 
 import qualified Data.PerfectHash.Hashing as Hashing
-import Data.PerfectHash.Hashing (Hash, Size)
+import Data.PerfectHash.Hashing (Hash, ArraySize)
 import qualified Data.PerfectHash.Lookup as Lookup
 import Data.PerfectHash.Types.Nonces (Nonce)
 import qualified Data.PerfectHash.Types.Nonces as Nonces
@@ -75,8 +75,8 @@ emptyLookupTable :: LookupTable a
 emptyLookupTable = NewLookupTable mempty mempty
 
 
-data MapAndSize a b = MapAndSize (Map a b) Size
-data IntMapAndSize a = IntMapAndSize (IntMap a) Size
+data MapAndSize a b = MapAndSize (Map a b) ArraySize
+data IntMapAndSize a = IntMapAndSize (IntMap a) ArraySize
 
 
 convertToVector
@@ -261,7 +261,7 @@ preliminaryBucketPlacement
 preliminaryBucketPlacement words_dict =
   toSortedList bucket_hash_tuples
   where
-    size = Map.size words_dict
+    size = Hashing.ArraySize $ Map.size words_dict
 
     f z = x
       where
@@ -288,7 +288,7 @@ createMinimalPerfectHash
 createMinimalPerfectHash words_dict =
   convertToVector $ NewLookupTable final_g final_values
   where
-    size = Map.size words_dict
+    size = Hashing.ArraySize $ Map.size words_dict
 
     sorted_bucket_hash_tuples = preliminaryBucketPlacement words_dict
 
@@ -298,18 +298,17 @@ createMinimalPerfectHash words_dict =
         (MapAndSize words_dict size)
         sorted_bucket_hash_tuples
 
-    isUnusedSlot = not . (`IntMap.member` vals intermediate_lookup_table)
+    isUnusedSlot (Hashing.SlotIndex s) =
+      not $ IntMap.member s $ vals intermediate_lookup_table
 
-    unused_slots = filter
-      isUnusedSlot
-      [0..(size - 1)]
+    unused_slots = filter isUnusedSlot $ Hashing.generateArrayIndices size
 
     zipped_remaining_with_unused_slots =
       zip remaining_word_hash_tuples unused_slots
 
     -- Note: We subtract one to ensure it's negative even if the
     -- zeroeth slot was used.
-    f1 (SingletonBucket computed_hash _, free_slot_index) =
+    f1 (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
       -- Observe here that both the output and input
       -- are nonces:
       IntMap.insert computed_hash $ Nonces.Nonce x
@@ -322,7 +321,7 @@ createMinimalPerfectHash words_dict =
       (redirs intermediate_lookup_table)
       zipped_remaining_with_unused_slots
 
-    f2 (SingletonBucket _ word, free_slot_index) =
+    f2 (SingletonBucket _ word, Hashing.SlotIndex free_slot_index) =
       IntMap.insert free_slot_index $
         words_dict ! word
 

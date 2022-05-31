@@ -26,7 +26,12 @@ newtype SlotIndex = SlotIndex Int
 
 type Hash = Int
 
-type Size = Int
+newtype ArraySize = ArraySize Int
+  deriving Show
+
+
+generateArrayIndices :: ArraySize -> [SlotIndex]
+generateArrayIndices (ArraySize size) = map SlotIndex [0..(size - 1)]
 
 
 mask32bits :: Int
@@ -49,11 +54,12 @@ instance ToHashableChunks Text where
 
 
 hashToSlot :: ToHashableChunks a =>
-     Nonce -- ^ nonce
-  -> Size -- ^ array size
+     Nonce
+  -> ArraySize
   -> a -- ^ key
   -> SlotIndex
-hashToSlot nonce size key = SlotIndex $ hash nonce key `mod` size
+hashToSlot nonce (ArraySize size) key =
+  SlotIndex $ hash nonce key `mod` size
 
 
 -- | The interface is comparable to the
