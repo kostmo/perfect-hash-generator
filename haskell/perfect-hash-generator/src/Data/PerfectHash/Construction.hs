@@ -106,7 +106,7 @@ attemptNonceRecursive
   -> Nonce
   -> IntSet -- ^ occupied slots
   -> [a] -- ^ keys
-  -> [Maybe Int]  -- TODO Change to [Maybe Hashing.SlotIndex]
+  -> [Maybe Hashing.SlotIndex]
 attemptNonceRecursive _ _ _ [] = []
 attemptNonceRecursive
     values_and_size
@@ -120,15 +120,17 @@ attemptNonceRecursive
 
   where
     IntMapAndSize values size = values_and_size
-    Hashing.SlotIndex slot = Hashing.hashToSlot nonce size current_key
+    slot = Hashing.hashToSlot nonce size current_key
+
+    Hashing.SlotIndex slotval = slot
 
     -- TODO: Create a record "SlotOccupation" to encapsulate the IntSet implementation
-    cannot_use_slot = IntSet.member slot occupied_slots || IntMap.member slot values
+    cannot_use_slot = IntSet.member slotval occupied_slots || IntMap.member slotval values
 
     recursive_result = attemptNonceRecursive
       values_and_size
       nonce
-      (IntSet.insert slot occupied_slots)
+      (IntSet.insert slotval occupied_slots)
       remaining_bucket_keys
 
 
@@ -156,7 +158,7 @@ findNonceForBucket nonce_attempt values_and_size bucket =
   maybe
     recursive_result
     f
-    result_for_this_iteration
+    unpacked_result
 
   where
     f = PlacementAttempt nonce_attempt . flip (zipWith SingletonBucket) bucket
@@ -170,6 +172,9 @@ findNonceForBucket nonce_attempt values_and_size bucket =
       nonce_attempt
       mempty
       bucket
+
+    -- TODO Chage the type of findNonceForBucket so that we don't need this
+    unpacked_result = fmap (map (\(Hashing.SlotIndex x) -> x)) result_for_this_iteration
 
     recursive_result = findNonceForBucket
       (Nonces.nextCandidate nonce_attempt)
