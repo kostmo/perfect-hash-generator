@@ -9,11 +9,13 @@ module Data.PerfectHash.Lookup (
   , lookup
   ) where
 
-import           Data.Vector.Unboxed      (Vector, (!))
-import qualified Data.Vector.Unboxed      as Vector
+import           Data.Vector      (Vector, (!))
+import qualified Data.Vector      as Vector
 import           Prelude                  hiding (lookup)
 
+import Data.PerfectHash.Types.Nonces (Nonce (Nonce))
 import qualified Data.PerfectHash.Hashing as Hashing
+import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 
 -- | Inputs for the lookup function.
@@ -21,7 +23,7 @@ import qualified Data.PerfectHash.Hashing as Hashing
 -- There are two arrays used in successive stages of the lookup.
 -- In this implementation, both arrays are the same length.
 data LookupTable a = LookupTable {
-    nonces :: Vector Hashing.Nonce
+    nonces :: Vector Nonce
     -- ^ This is the intermediate lookup table.
     --
     -- In the lookup process, the key's hash is computed first with a nonce of
@@ -41,12 +43,12 @@ data LookupTable a = LookupTable {
   }
 
 
-size :: Vector.Unbox a => LookupTable a -> Hashing.Size
+size :: LookupTable a -> Hashing.Size
 size = Vector.length . values
 
 
-encodeDirectEntry :: Int -> Hashing.SlotIndex
-encodeDirectEntry = subtract 1 . negate
+encodeDirectEntry :: Nonce -> Hashing.SlotIndex
+encodeDirectEntry (Nonce val) = subtract 1 $ negate val
 
 
 -- | For embedded applications, this function would usually be re-implemented
@@ -69,7 +71,7 @@ encodeDirectEntry = subtract 1 . negate
 --
 --     3. Use the result of (2) as the index into the 'values' array.
 lookup
-  :: (Hashing.ToHashableChunks a, Vector.Unbox b)
+  :: (Hashing.ToHashableChunks a)
   => LookupTable b
   -> a -- ^ key
   -> b -- ^ value
@@ -80,10 +82,10 @@ lookup lookup_table key =
   where
     table_size = size lookup_table
 
-    nonce_index = Hashing.hashToSlot 0 table_size key
+    nonce_index = Hashing.hashToSlot (Nonce 0) table_size key
     nonce = nonces lookup_table ! nonce_index
 
-    -- Negative value indicates that we don't need extra lookup layer
-    v_key = if nonce < 0
+    -- Negative nonce value indicates that we don't need extra lookup layer
+    v_key = if Nonces.isDirectSlot nonce
       then encodeDirectEntry nonce
       else Hashing.hashToSlot nonce table_size key

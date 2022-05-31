@@ -7,13 +7,14 @@ import           Data.Either                    (isRight)
 import qualified Data.Map as Map
 import           Data.Map                 (Map)
 import           Data.Text                      (Text)
-import qualified Data.Vector.Unboxed            as Vector
 import           Test.Framework                 (defaultMain, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (assertBool, assertEqual)
 
 import qualified Data.PerfectHash.Construction  as Construction
 import qualified Data.PerfectHash.Hashing       as Hashing
+import qualified Data.PerfectHash.Types.Nonces as Nonces
+
 import qualified Exercise
 
 
@@ -26,7 +27,7 @@ testHashComputation key val =
   assertEqual error_message val computed_hash
   where
     error_message = unwords ["Incorrect hash computation of", show key]
-    computed_hash = Hashing.hash 0 key
+    computed_hash = Hashing.hash (Nonces.Nonce 0) key
 
 
 mkInputs
@@ -61,7 +62,7 @@ intMapTuples = mkInputs [
 
 
 testHashLookups
-  :: (Show a, Show b, Eq b, Vector.Unbox b, Default b, Hashing.ToHashableChunks a, Ord a)
+  :: (Show a, Show b, Eq b, Default b, Hashing.ToHashableChunks a, Ord a)
   => Map a b
   -> IO ()
 testHashLookups word_index_tuples =

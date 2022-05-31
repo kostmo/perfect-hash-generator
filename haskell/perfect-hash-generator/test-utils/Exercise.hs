@@ -6,7 +6,6 @@ import           Control.Monad            (unless)
 import           Data.Foldable            (traverse_)
 import qualified Data.Map as Map
 import           Data.Map                 (Map)
-import qualified Data.Vector.Unboxed      as Vector
 
 import qualified Data.PerfectHash.Hashing as Hashing
 import qualified Data.PerfectHash.Lookup  as Lookup
@@ -14,7 +13,7 @@ import qualified Data.PerfectHash.Lookup  as Lookup
 
 -- | genericized to facilitate benchmarking
 testLookupsHelper
-  :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b)
+  :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a)
   => (a -> b) -- ^ lookup function
   -> Map a b
   -> Either String ()
@@ -35,7 +34,7 @@ testLookupsHelper lookup_function =
 
 
 testHashMapLookups
-  :: (Show b, Eq b, Show a, Ord a, Hashing.ToHashableChunks a, Vector.Unbox b)
+  :: (Show b, Eq b, Show a, Ord a, Hashing.ToHashableChunks a)
   => Map a b
   -> Either String ()
 testHashMapLookups hash_map = testLookupsHelper
@@ -44,7 +43,7 @@ testHashMapLookups hash_map = testLookupsHelper
 
 
 testPerfectLookups
-  :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a, Vector.Unbox b)
+  :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a)
   => Lookup.LookupTable b
   -> Map a b
   -> Either String ()

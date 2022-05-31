@@ -6,13 +6,16 @@ import qualified Data.Map as Map
 import           Data.Map                 (Map)
 import           Data.IntSet                   (IntSet)
 import qualified Data.IntSet                   as IntSet
-import qualified Data.PerfectHash.Construction as Construction
-import qualified Data.PerfectHash.Lookup       as Lookup
-import qualified Data.Vector.Unboxed           as Vector
-import qualified Exercise
+import qualified Data.Vector           as Vector
 import           System.CPUTime
 import           Text.Printf
 import Options.Applicative
+
+import qualified Data.PerfectHash.Construction as Construction
+import qualified Data.PerfectHash.Lookup       as Lookup
+import qualified Data.PerfectHash.Types.Nonces as Nonces
+
+import qualified Exercise
 
 
 defaultValueCount :: Int
@@ -98,7 +101,7 @@ run (DemoOptions valueCount _debugEnabled) = do
     , "entries."
     ]
 
-  let direct_mapping_nonces = Vector.filter (< 0) $ Lookup.nonces lookup_table
+  let direct_mapping_nonces = Vector.filter Nonces.isDirectSlot $ Lookup.nonces lookup_table
       direct_mapping_count = Vector.length direct_mapping_nonces
       total_count = length intMapTuples
       direct_mapping_percentage = 100 * direct_mapping_count `div` total_count

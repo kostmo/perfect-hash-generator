@@ -18,22 +18,15 @@ import           Data.Char            (ord)
 import           Data.Foldable        (foldl')
 import           Data.Text            (Text)
 import qualified Data.Text            as T
+import qualified Data.PerfectHash.Types.Nonces as Nonces
+import Data.PerfectHash.Types.Nonces (Nonce)
 
 
 type SlotIndex = Int
 
-
 type Hash = Int
 
-type Nonce = Int
-
 type Size = Int
-
-
--- | This choice of prime number @0x01000193@ was taken from the Python implementation
--- on <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's page>.
-primeFNV :: Int
-primeFNV = 0x01000193
 
 
 mask32bits :: Int
@@ -84,8 +77,6 @@ hash nonce =
   -- NOTE: This must be 'foldl', not 'foldr'
   foldl' combine d . toHashableChunks
   where
-    d = if nonce == 0
-      then primeFNV
-      else nonce
+    d = Nonces.getNonzeroNonceVal nonce
 
-    combine acc = (.&. mask32bits) . (* primeFNV) . xor acc
+    combine acc = (.&. mask32bits) . (* Nonces.primeFNV) . xor acc

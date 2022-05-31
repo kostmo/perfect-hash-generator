@@ -37,18 +37,20 @@ import qualified Data.Map as Map
 import           Data.Map                 (Map, (!))
 import Data.Function (on)
 import           Data.Ord                 (Down (Down))
-import qualified Data.Vector.Unboxed      as Vector
+import qualified Data.Vector      as Vector
 import qualified Data.Maybe               as Maybe
 
 import qualified Data.PerfectHash.Hashing as Hashing
-import Data.PerfectHash.Hashing (Hash, Nonce, Size)
+import Data.PerfectHash.Hashing (Hash, Size)
 import qualified Data.PerfectHash.Lookup as Lookup
+import Data.PerfectHash.Types.Nonces (Nonce)
+import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 
 -- | NOTE: Vector may peform better for these structures, but
 -- the code may not be as clean.
 data LookupTable a = NewLookupTable {
-    redirs :: IntMap Int
+    redirs :: IntMap Nonce
   , vals   :: IntMap a
   }
 
@@ -78,7 +80,7 @@ data IntMapAndSize a = IntMapAndSize (IntMap a) Size
 
 
 convertToVector
-  :: (Vector.Unbox a, Default a)
+  :: (Default a)
   => LookupTable a
   -> Lookup.LookupTable a
 convertToVector x = Lookup.LookupTable a1 a2
@@ -170,7 +172,7 @@ findNonceForBucket nonce_attempt values_and_size bucket =
       bucket
 
     recursive_result = findNonceForBucket
-      (nonce_attempt + 1)
+      (Nonces.nextCandidate nonce_attempt)
       values_and_size
       bucket
 
@@ -201,7 +203,7 @@ handleMultiBuckets
     -- but keeps incrementing it until all of the keys in this
     -- bucket are placeable.
     PlacementAttempt nonce slots_for_bucket =
-      findNonceForBucket 1 sized_vals_dict bucket
+      findNonceForBucket (Nonces.Nonce 1) sized_vals_dict bucket
 
     new_g = IntMap.insert computed_hash nonce old_g
 
@@ -261,7 +263,7 @@ preliminaryBucketPlacement words_dict =
   where
     size = Map.size words_dict
     slot_key_pairs = deriveTuples
-      (Hashing.hashToSlot 0 size) $
+      (Hashing.hashToSlot (Nonces.Nonce 0) size) $
         Map.keys words_dict
 
     bucket_hash_tuples = map (uncurry HashBucket) $
@@ -276,7 +278,7 @@ preliminaryBucketPlacement words_dict =
 -- A 'Map' is required as input to guarantee that there are
 -- no duplicate keys.
 createMinimalPerfectHash
-  :: (Hashing.ToHashableChunks k, Ord k, Vector.Unbox v, Default v)
+  :: (Hashing.ToHashableChunks k, Ord k, Default v)
   => Map k v -- ^ key-value pairs
   -> Lookup.LookupTable v
      -- ^ output for use by 'LookupTable.lookup' or a custom code generator
@@ -306,7 +308,10 @@ createMinimalPerfectHash words_dict =
     -- zeroeth slot was used.
     f1 (SingletonBucket computed_hash _, free_slot_index) =
       IntMap.insert computed_hash $
-        Lookup.encodeDirectEntry free_slot_index
+        -- Observe here that both the output and input
+        -- are nonces:
+        Nonces.Nonce $ Lookup.encodeDirectEntry $
+          Nonces.Nonce free_slot_index
 
     final_g = foldr
       f1
