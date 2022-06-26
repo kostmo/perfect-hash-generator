@@ -64,7 +64,7 @@ data AlgorithmParams = AlgorithmParams {
 -- | NOTE: Vector might perform better for these structures, but
 -- the code may not be as clean.
 data LookupTable a = NewLookupTable {
-    redirs :: IntMap Nonce
+    nonces :: IntMap Nonce
   , vals   :: IntMap a
   }
 
@@ -121,7 +121,7 @@ convertToVector x = Lookup.LookupTable a1 a2
     vectorize input = Vector.generate size $
       flip (IntMap.findWithDefault def) input
 
-    a1 = vectorize $ redirs x
+    a1 = vectorize $ nonces x
     a2 = vectorize $ vals x
 
 
@@ -171,14 +171,14 @@ attemptNonceRecursive
 --
 -- Increment the candidate nonce by @1@ each time.
 -- Theoretically we're guaranteed to eventually find a solution.
-findNonceForBucket
+findNonceForBucketRecursive
   :: (Hashing.ToHashableChunks a)
   => AlgorithmParams
   -> Nonce -- ^ nonce to attempt
   -> IntMapAndSize b
   -> [(a, b)] -- ^ colliding keys for this bucket
   -> PlacementAttempt (a, b)
-findNonceForBucket algorithm_params nonce_attempt values_and_size bucket =
+findNonceForBucketRecursive algorithm_params nonce_attempt values_and_size bucket =
 
   -- This is a "lazy" (and awkward) way to specify recursion:
   -- If the result ("result_for_this_iteration") at this iteration of the recursion
@@ -186,24 +186,24 @@ findNonceForBucket algorithm_params nonce_attempt values_and_size bucket =
   -- Otherwise, descend one layer deeper by computing "recursive_result".
   maybe
     recursive_result
-    f
-    maybe_result_for_this_iteration
+    wrapSlotIndicesAsAttempt
+    maybe_final_result
 
   where
-    f = PlacementAttempt nonce_attempt .
+    wrapSlotIndicesAsAttempt = PlacementAttempt nonce_attempt .
       flip (zipWith SingletonBucket) bucket . map (Hashing.Hash . Hashing.getIndex)
 
     -- NOTE: attemptNonceRecursive returns a list of "Maybe SlotIndex"
     -- records. If *any* of those elements are Nothing (that is, at
-    -- least one of the slots were not successfully placed), then
-    -- sequenceA of that list will become Nothing.
-    maybe_result_for_this_iteration = sequenceA $ attemptNonceRecursive
+    -- least one of the slots were not successfully placed), then applying
+    -- sequenceA to that list will yield Nothing.
+    maybe_final_result = sequenceA $ attemptNonceRecursive
       values_and_size
       nonce_attempt
       mempty
       bucket
 
-    recursive_result = findNonceForBucket
+    recursive_result = findNonceForBucketRecursive
       algorithm_params
       (getNextNonceCandidate algorithm_params nonce_attempt)
       values_and_size
@@ -213,22 +213,22 @@ findNonceForBucket algorithm_params nonce_attempt values_and_size bucket =
 -- | Searches for a nonce for this bucket, starting with the value @1@,
 -- until one is found that results in no collisions for both this bucket
 -- and all previously placed buckets.
-handleMultiBuckets
+processMultiEntryBuckets
   :: (Hashing.ToHashableChunks a)
   => AlgorithmParams
   -> ArraySize
   -> LookupTable b
   -> HashBucket (a, b)
   -> LookupTable b
-handleMultiBuckets
+processMultiEntryBuckets
     algorithm_params
     size
     old_lookup_table
-    (HashBucket computed_hash bucket) =
+    (HashBucket computed_hash bucket_members) =
 
-  NewLookupTable new_g new_values_dict
+  NewLookupTable new_nonces new_values_dict
   where
-    NewLookupTable old_g old_values_dict = old_lookup_table
+    NewLookupTable old_nonces old_values_dict = old_lookup_table
 
     sized_vals_dict = IntMapAndSize old_values_dict size
 
@@ -236,30 +236,34 @@ handleMultiBuckets
     -- but keeps incrementing it until all of the keys in this
     -- bucket are placeable.
     PlacementAttempt nonce slots_for_bucket =
-      findNonceForBucket
+      findNonceForBucketRecursive
         algorithm_params
         (startingNonce algorithm_params)
-        sized_vals_dict bucket
+        sized_vals_dict
+        bucket_members
 
-    new_g = IntMap.insert (Hashing.getHash computed_hash) nonce old_g
+    new_nonces = IntMap.insert (Hashing.getHash computed_hash) nonce old_nonces
 
-    new_values_dict = foldr f old_values_dict slots_for_bucket
+    new_values_dict = foldr place_values old_values_dict slots_for_bucket
 
-    f (SingletonBucket slot_val (_, map_val)) =
-      IntMap.insert (Hashing.getHash slot_val) map_val
+    place_values (SingletonBucket slot_val (_, value)) =
+      IntMap.insert (Hashing.getHash slot_val) value
 
 
 -- | This function exploits the sorted structure of the list
 -- by skimming the multi-entry buckets from the front of the
 -- list. Then we filter the single-entry buckets by dropping
 -- the empty buckets.
-findCollisionNonces
+--
+-- The partial solution produced by this function entails
+-- all of the colliding nonces as fully placed.
+handleCollidingNonces
   :: (Hashing.ToHashableChunks a)
   => AlgorithmParams
   -> ArraySize
   -> SortedList (HashBucket (a, b))
   -> PartialSolution a b
-findCollisionNonces algorithm_params size sorted_bucket_hash_tuples =
+handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
 
   PartialSolution lookup_table non_colliding_buckets
   where
@@ -276,7 +280,7 @@ findCollisionNonces algorithm_params size sorted_bucket_hash_tuples =
     -- first, making it improbable that the large buckets will be placeable,
     -- and potentially resulting in an infinite loop.
     lookup_table = foldl'
-      (handleMultiBuckets algorithm_params size)
+      (processMultiEntryBuckets algorithm_params size)
       emptyLookupTable
       multi_entry_buckets
 
@@ -288,15 +292,15 @@ findCollisionNonces algorithm_params size sorted_bucket_hash_tuples =
       SingletonBucket hashVal <$> Maybe.listToMaybe elements
 
 
--- | Sort buckets by descending size
+-- | Hash the keys into buckets and sort them by descending size
 preliminaryBucketPlacement
   :: (Hashing.ToHashableChunks a)
   => SizedList (a, b)
   -> SortedList (HashBucket (a, b))
-preliminaryBucketPlacement tuplified_words_dict_and_size =
+preliminaryBucketPlacement sized_list =
   toSortedList bucket_hash_tuples
   where
-    SizedList tuplified_words_dict size = tuplified_words_dict_and_size
+    SizedList tuplified_words_dict size = sized_list
 
     f = Hashing.getIndex . Hashing.hashToSlot (Nonces.Nonce 0) size . fst
 
@@ -304,6 +308,46 @@ preliminaryBucketPlacement tuplified_words_dict_and_size =
 
     bucket_hash_tuples = map (uncurry HashBucket . first Hashing.Hash) $
       IntMap.toList $ binTuplesBySecond slot_key_pairs
+
+
+-- | Arbitrarily pair the non-colliding buckets with free slots.
+--
+-- At this point, all of the "colliding" hashes have been resolved
+-- to their own slots, so we just take the leftovers.
+assignDirectSlots
+  :: ArraySize
+  -> PartialSolution a b
+  -> LookupTable b
+assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_buckets) =
+  NewLookupTable final_nonces final_values
+  where
+    isUnusedSlot (Hashing.SlotIndex s) =
+      not $ IntMap.member s $ vals intermediate_lookup_table
+
+    unused_slots = filter isUnusedSlot $ Hashing.generateArrayIndices size
+
+    zipped_remaining_with_unused_slots =
+      zip non_colliding_buckets unused_slots
+
+    insertDirectEntry (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
+      -- Observe here that both the output and input
+      -- are nonces:
+      IntMap.insert (Hashing.getHash computed_hash) $ Nonces.Nonce $
+        Hashing.getIndex $ Lookup.encodeDirectEntry $
+          Nonces.Nonce free_slot_index
+
+    final_nonces = foldr
+      insertDirectEntry
+      (nonces intermediate_lookup_table)
+      zipped_remaining_with_unused_slots
+
+    f2 (SingletonBucket _ (_, map_value), Hashing.SlotIndex free_slot_index) =
+      IntMap.insert free_slot_index map_value
+
+    final_values = foldr
+      f2
+      (vals intermediate_lookup_table)
+      zipped_remaining_with_unused_slots
 
 
 -- | Generates a minimal perfect hash for a set of key-value pairs.
@@ -319,62 +363,20 @@ createMinimalPerfectHash
   -> Lookup.LookupTable v
      -- ^ output for use by 'LookupTable.lookup' or a custom code generator
 createMinimalPerfectHash original_words_dict =
-  convertToVector $ NewLookupTable final_g final_values
+  convertToVector final_solution
   where
     tuplified_words_dict = Map.toList original_words_dict
     size = Hashing.ArraySize $ length tuplified_words_dict
-    tuplified_words_dict_and_size = SizedList tuplified_words_dict size
-    sorted_bucket_hash_tuples = preliminaryBucketPlacement tuplified_words_dict_and_size
+    sized_list = SizedList tuplified_words_dict size
 
-    partial_solution =
-      findCollisionNonces
-        defaultAlgorithmParams
-        size
-        sorted_bucket_hash_tuples
+    sorted_bucket_hash_tuples = preliminaryBucketPlacement sized_list
 
-    PartialSolution intermediate_lookup_table _ = partial_solution
-
-    zipped_remaining_with_unused_slots = assignDirectSlots
+    partial_solution = handleCollidingNonces
+      defaultAlgorithmParams
       size
-      partial_solution
+      sorted_bucket_hash_tuples
 
-    insertDirectEntry (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
-      -- Observe here that both the output and input
-      -- are nonces:
-      IntMap.insert (Hashing.getHash computed_hash) $ Nonces.Nonce $
-        Hashing.getIndex $ Lookup.encodeDirectEntry $
-          Nonces.Nonce free_slot_index
-
-    final_g = foldr
-      insertDirectEntry
-      (redirs intermediate_lookup_table)
-      zipped_remaining_with_unused_slots
-
-    f2 (SingletonBucket _ (_, map_value), Hashing.SlotIndex free_slot_index) =
-      IntMap.insert free_slot_index map_value
-
-    final_values = foldr
-      f2
-      (vals intermediate_lookup_table)
-      zipped_remaining_with_unused_slots
-
-
--- | Arbitrarily pair the non-colliding buckets with free slots
-assignDirectSlots
-  :: ArraySize
-  -> PartialSolution a b
-  -> [(SingletonBucket (a, b), Hashing.SlotIndex)]
-assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_buckets) =
-  zipped_remaining_with_unused_slots
-  where
-
-    isUnusedSlot (Hashing.SlotIndex s) =
-      not $ IntMap.member s $ vals intermediate_lookup_table
-
-    unused_slots = filter isUnusedSlot $ Hashing.generateArrayIndices size
-
-    zipped_remaining_with_unused_slots =
-      zip non_colliding_buckets unused_slots
+    final_solution = assignDirectSlots size partial_solution
 
 
 -- * Utility functions
