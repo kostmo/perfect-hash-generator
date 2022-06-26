@@ -54,10 +54,10 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 
-{-# ANN module "HLint: use newtype instead of data" #-}
 data AlgorithmParams = AlgorithmParams {
-  _nextNonceCandidate :: Nonce -> Nonce
-}
+    getNextNonceCandidate :: Nonce -> Nonce
+  , startingNonce :: Nonce
+  }
 
 
 -- | NOTE: Vector may peform better for these structures, but
@@ -84,8 +84,8 @@ instance Ord (HashBucket a) where
   compare = compare `on` (Down . length . bucketMembers)
 
 
-data TupledMapAndSize a = TupledMapAndSize [a] ArraySize
-data SimpleIntMapAndSize a = SimpleIntMapAndSize (IntMap a) ArraySize
+data SizedList a = SizedList [a] ArraySize
+data IntMapAndSize a = IntMapAndSize (IntMap a) ArraySize
 
 
 -- | slots for each bucket, with the current nonce attempt
@@ -121,7 +121,7 @@ convertToVector x = Lookup.LookupTable a1 a2
 -- yields a collision when using the new nonce.
 attemptNonceRecursive
   :: Hashing.ToHashableChunks a
-  => SimpleIntMapAndSize b
+  => IntMapAndSize b
   -> Nonce
   -> IntSet -- ^ occupied slots
   -> [(a, b)] -- ^ keys
@@ -138,7 +138,7 @@ attemptNonceRecursive
     else Just slot : recursive_result
 
   where
-    SimpleIntMapAndSize values size = values_and_size
+    IntMapAndSize values size = values_and_size
     slot = Hashing.hashToSlot nonce size current_key
 
     Hashing.SlotIndex slotval = slot
@@ -162,10 +162,10 @@ findNonceForBucket
   :: (Hashing.ToHashableChunks a)
   => AlgorithmParams
   -> Nonce -- ^ nonce to attempt
-  -> SimpleIntMapAndSize b
+  -> IntMapAndSize b
   -> [(a, b)] -- ^ colliding keys for this bucket
   -> PlacementAttempt (a, b)
-findNonceForBucket p@(AlgorithmParams getNextNonce) nonce_attempt values_and_size bucket =
+findNonceForBucket algorithm_params nonce_attempt values_and_size bucket =
 
   -- This is a "lazy" (and awkward) way to specify recursion:
   -- If the result ("result_for_this_iteration") at this iteration of the recursion
@@ -191,8 +191,8 @@ findNonceForBucket p@(AlgorithmParams getNextNonce) nonce_attempt values_and_siz
       bucket
 
     recursive_result = findNonceForBucket
-      p
-      (getNextNonce nonce_attempt)
+      algorithm_params
+      (getNextNonceCandidate algorithm_params nonce_attempt)
       values_and_size
       bucket
 
@@ -217,13 +217,16 @@ handleMultiBuckets
   where
     NewLookupTable old_g old_values_dict = old_lookup_table
 
-    sized_vals_dict = SimpleIntMapAndSize old_values_dict size
+    sized_vals_dict = IntMapAndSize old_values_dict size
 
     -- This is assured to succeed; it starts with a nonce of 1
     -- but keeps incrementing it until all of the keys in this
     -- bucket are placeable.
     PlacementAttempt nonce slots_for_bucket =
-      findNonceForBucket algorithm_params (Nonces.Nonce 1) sized_vals_dict bucket
+      findNonceForBucket
+        algorithm_params
+        (startingNonce algorithm_params)
+        sized_vals_dict bucket
 
     new_g = IntMap.insert computed_hash nonce old_g
 
@@ -275,12 +278,12 @@ findCollisionNonces algorithm_params size sorted_bucket_hash_tuples =
 -- | Sort buckets by descending size
 preliminaryBucketPlacement
   :: (Hashing.ToHashableChunks a)
-  => TupledMapAndSize (a, b)
+  => SizedList (a, b)
   -> SortedList (HashBucket (a, b))
 preliminaryBucketPlacement tuplified_words_dict_and_size =
   toSortedList bucket_hash_tuples
   where
-    TupledMapAndSize tuplified_words_dict size = tuplified_words_dict_and_size
+    SizedList tuplified_words_dict size = tuplified_words_dict_and_size
 
     f = Hashing.getIndex . Hashing.hashToSlot (Nonces.Nonce 0) size . fst
 
@@ -305,15 +308,19 @@ createMinimalPerfectHash
 createMinimalPerfectHash original_words_dict =
   convertToVector $ NewLookupTable final_g final_values
   where
+    algorithm_params = AlgorithmParams
+      (Nonces.mapNonce (+1))
+      (Nonces.Nonce 1)
+
     tuplified_words_dict = Map.toList original_words_dict
     size = Hashing.ArraySize $ length tuplified_words_dict
-    tuplified_words_dict_and_size = TupledMapAndSize tuplified_words_dict size
+    tuplified_words_dict_and_size = SizedList tuplified_words_dict size
     sorted_bucket_hash_tuples = preliminaryBucketPlacement tuplified_words_dict_and_size
 
     -- TODO: Rename this variable: "remaining_word_hash_tuples"
     (intermediate_lookup_table, remaining_word_hash_tuples) =
       findCollisionNonces
-        (AlgorithmParams (Nonces.mapNonce (+1)))
+        algorithm_params
         size
         sorted_bucket_hash_tuples
 
@@ -325,8 +332,6 @@ createMinimalPerfectHash original_words_dict =
     zipped_remaining_with_unused_slots =
       zip remaining_word_hash_tuples unused_slots
 
-    -- Note: We subtract one to ensure it's negative even if the
-    -- zeroeth slot was used.
     f1 (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
       -- Observe here that both the output and input
       -- are nonces:

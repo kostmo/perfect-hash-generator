@@ -47,6 +47,9 @@ size :: LookupTable a -> Hashing.ArraySize
 size = Hashing.ArraySize . Vector.length . values
 
 
+-- | NOTE: We subtract one to ensure it's negative even if the
+-- zeroeth slot was used. This lets us test for "direct encoding"
+-- by checking of the value is negative.
 encodeDirectEntry :: Nonce -> Hashing.SlotIndex
 encodeDirectEntry (Nonce val) =
   Hashing.SlotIndex $ subtract 1 $ negate val
