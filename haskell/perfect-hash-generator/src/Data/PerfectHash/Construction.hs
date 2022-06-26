@@ -60,7 +60,7 @@ data AlgorithmParams = AlgorithmParams {
   }
 
 
--- | NOTE: Vector may peform better for these structures, but
+-- | NOTE: Vector might perform better for these structures, but
 -- the code may not be as clean.
 data LookupTable a = NewLookupTable {
     redirs :: IntMap Nonce
@@ -85,15 +85,27 @@ instance Ord (HashBucket a) where
 
 
 data SizedList a = SizedList [a] ArraySize
+
 data IntMapAndSize a = IntMapAndSize (IntMap a) ArraySize
 
 
--- | slots for each bucket, with the current nonce attempt
+-- | slots for each bucket with the current nonce attempt
 data PlacementAttempt a = PlacementAttempt Nonce [SingletonBucket a]
 
 
+data PartialSolution a b = PartialSolution (LookupTable b) [SingletonBucket (a, b)]
+
+
+-- * Constants
+
 emptyLookupTable :: LookupTable a
 emptyLookupTable = NewLookupTable mempty mempty
+
+
+defaultAlgorithmParams :: AlgorithmParams
+defaultAlgorithmParams = AlgorithmParams
+  (Nonces.mapNonce (+1))
+  (Nonces.Nonce 1)
 
 
 -- * Functions
@@ -245,10 +257,10 @@ findCollisionNonces
   => AlgorithmParams
   -> ArraySize
   -> SortedList (HashBucket (a, b))
-  -> (LookupTable b, [SingletonBucket (a, b)])
+  -> PartialSolution a b
 findCollisionNonces algorithm_params size sorted_bucket_hash_tuples =
 
-  (lookup_table, remaining_words)
+  PartialSolution lookup_table non_colliding_buckets
   where
 
     -- Since the buckets have been sorted by descending size,
@@ -267,7 +279,7 @@ findCollisionNonces algorithm_params size sorted_bucket_hash_tuples =
       emptyLookupTable
       multi_entry_buckets
 
-    remaining_words = Maybe.mapMaybe
+    non_colliding_buckets = Maybe.mapMaybe
       convertToSingletonBucket
       single_or_fewer_buckets
 
@@ -308,31 +320,24 @@ createMinimalPerfectHash
 createMinimalPerfectHash original_words_dict =
   convertToVector $ NewLookupTable final_g final_values
   where
-    algorithm_params = AlgorithmParams
-      (Nonces.mapNonce (+1))
-      (Nonces.Nonce 1)
-
     tuplified_words_dict = Map.toList original_words_dict
     size = Hashing.ArraySize $ length tuplified_words_dict
     tuplified_words_dict_and_size = SizedList tuplified_words_dict size
     sorted_bucket_hash_tuples = preliminaryBucketPlacement tuplified_words_dict_and_size
 
-    -- TODO: Rename this variable: "remaining_word_hash_tuples"
-    (intermediate_lookup_table, remaining_word_hash_tuples) =
+    partial_solution =
       findCollisionNonces
-        algorithm_params
+        defaultAlgorithmParams
         size
         sorted_bucket_hash_tuples
 
-    isUnusedSlot (Hashing.SlotIndex s) =
-      not $ IntMap.member s $ vals intermediate_lookup_table
+    PartialSolution intermediate_lookup_table _ = partial_solution
 
-    unused_slots = filter isUnusedSlot $ Hashing.generateArrayIndices size
+    zipped_remaining_with_unused_slots = assignDirectSlots
+      size
+      partial_solution
 
-    zipped_remaining_with_unused_slots =
-      zip remaining_word_hash_tuples unused_slots
-
-    f1 (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
+    insertDirectEntry (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
       -- Observe here that both the output and input
       -- are nonces:
       IntMap.insert computed_hash $ Nonces.Nonce $
@@ -340,7 +345,7 @@ createMinimalPerfectHash original_words_dict =
           Nonces.Nonce free_slot_index
 
     final_g = foldr
-      f1
+      insertDirectEntry
       (redirs intermediate_lookup_table)
       zipped_remaining_with_unused_slots
 
@@ -351,6 +356,24 @@ createMinimalPerfectHash original_words_dict =
       f2
       (vals intermediate_lookup_table)
       zipped_remaining_with_unused_slots
+
+
+-- | Arbitrarily pair the non-colliding buckets with free slots
+assignDirectSlots
+  :: ArraySize
+  -> PartialSolution a b
+  -> [(SingletonBucket (a, b), Hashing.SlotIndex)]
+assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_buckets) =
+  zipped_remaining_with_unused_slots
+  where
+
+    isUnusedSlot (Hashing.SlotIndex s) =
+      not $ IntMap.member s $ vals intermediate_lookup_table
+
+    unused_slots = filter isUnusedSlot $ Hashing.generateArrayIndices size
+
+    zipped_remaining_with_unused_slots =
+      zip non_colliding_buckets unused_slots
 
 
 -- * Utility functions
