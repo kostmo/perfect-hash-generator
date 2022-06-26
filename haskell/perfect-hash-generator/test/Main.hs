@@ -12,6 +12,7 @@ import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (assertBool, assertEqual)
 
 import qualified Data.PerfectHash.Construction  as Construction
+import  Data.PerfectHash.Hashing       (Hash)
 import qualified Data.PerfectHash.Hashing       as Hashing
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 
@@ -21,7 +22,7 @@ import qualified Exercise
 testHashComputation
   :: (Hashing.ToHashableChunks a, Show a)
   => a
-  -> Int
+  -> Hash
   -> IO ()
 testHashComputation key val =
   assertEqual error_message val computed_hash
@@ -74,8 +75,8 @@ testHashLookups word_index_tuples =
 
 tests = [
     testGroup "Hash computation" [
-      testCase "compute-string-hash" $ testHashComputation ("blarg" :: String) 3322346319
-    , testCase "compute-int-hash" $ testHashComputation (70000 :: Int) 4169891409
+      testCase "compute-string-hash" $ testHashComputation ("blarg" :: String) $ Hashing.Hash 3322346319
+    , testCase "compute-int-hash" $ testHashComputation (70000 :: Int) $ Hashing.Hash 4169891409
     ]
   , testGroup "Hash lookups" [
       testCase "word-lookups-string" $ testHashLookups wordIndexTuplesString

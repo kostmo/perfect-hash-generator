@@ -24,7 +24,8 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 
 newtype SlotIndex = SlotIndex {getIndex :: Int}
 
-type Hash = Int
+newtype Hash = Hash {getHash :: Int}
+  deriving (Eq, Show)
 
 newtype ArraySize = ArraySize Int
   deriving Show
@@ -44,10 +45,10 @@ class ToHashableChunks a where
   toHashableChunks :: a -> [Hash]
 
 instance ToHashableChunks Int where
-  toHashableChunks = map fromIntegral . B.unpack . encode
+  toHashableChunks = map (Hash. fromIntegral) . B.unpack . encode
 
 instance ToHashableChunks String where
-  toHashableChunks = map ord
+  toHashableChunks = map $ Hash . ord
 
 instance ToHashableChunks Text where
   toHashableChunks = toHashableChunks . T.unpack
@@ -59,7 +60,7 @@ hashToSlot :: ToHashableChunks a =>
   -> a -- ^ key
   -> SlotIndex
 hashToSlot nonce (ArraySize size) key =
-  SlotIndex $ hash nonce key `mod` size
+  SlotIndex $ getHash (hash nonce key) `mod` size
 
 
 -- | The interface is comparable to the
@@ -81,8 +82,8 @@ hash :: ToHashableChunks a =>
 hash nonce =
 
   -- NOTE: This must be 'foldl', not 'foldr'
-  foldl' combine d . toHashableChunks
+  Hash . foldl' combine d . toHashableChunks
   where
     d = Nonces.getNonzeroNonceVal nonce
 
-    combine acc = (.&. mask32bits) . (* Nonces.primeFNV) . xor acc
+    combine acc = (.&. mask32bits) . (* Nonces.primeFNV) . xor acc . getHash

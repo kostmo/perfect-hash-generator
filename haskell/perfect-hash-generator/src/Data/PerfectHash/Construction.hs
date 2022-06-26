@@ -31,6 +31,7 @@ module Data.PerfectHash.Construction (
     createMinimalPerfectHash
   ) where
 
+import Control.Arrow (first)
 import Data.Tuple (swap)
 import           Data.Default             (Default, def)
 import           Control.Monad            (join)
@@ -190,7 +191,7 @@ findNonceForBucket algorithm_params nonce_attempt values_and_size bucket =
 
   where
     f = PlacementAttempt nonce_attempt .
-      flip (zipWith SingletonBucket) bucket . map Hashing.getIndex
+      flip (zipWith SingletonBucket) bucket . map (Hashing.Hash . Hashing.getIndex)
 
     -- NOTE: attemptNonceRecursive returns a list of "Maybe SlotIndex"
     -- records. If *any* of those elements are Nothing (that is, at
@@ -240,12 +241,12 @@ handleMultiBuckets
         (startingNonce algorithm_params)
         sized_vals_dict bucket
 
-    new_g = IntMap.insert computed_hash nonce old_g
+    new_g = IntMap.insert (Hashing.getHash computed_hash) nonce old_g
 
     new_values_dict = foldr f old_values_dict slots_for_bucket
 
     f (SingletonBucket slot_val (_, map_val)) =
-      IntMap.insert slot_val map_val
+      IntMap.insert (Hashing.getHash slot_val) map_val
 
 
 -- | This function exploits the sorted structure of the list
@@ -301,7 +302,7 @@ preliminaryBucketPlacement tuplified_words_dict_and_size =
 
     slot_key_pairs = deriveTuples f tuplified_words_dict
 
-    bucket_hash_tuples = map (uncurry HashBucket) $
+    bucket_hash_tuples = map (uncurry HashBucket . first Hashing.Hash) $
       IntMap.toList $ binTuplesBySecond slot_key_pairs
 
 
@@ -340,7 +341,7 @@ createMinimalPerfectHash original_words_dict =
     insertDirectEntry (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
       -- Observe here that both the output and input
       -- are nonces:
-      IntMap.insert computed_hash $ Nonces.Nonce $
+      IntMap.insert (Hashing.getHash computed_hash) $ Nonces.Nonce $
         Hashing.getIndex $ Lookup.encodeDirectEntry $
           Nonces.Nonce free_slot_index
 
