@@ -54,6 +54,12 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 
+{-# ANN module "HLint: use newtype instead of data" #-}
+data AlgorithmParams = AlgorithmParams {
+  _nextNonceCandidate :: Nonce -> Nonce
+}
+
+
 -- | NOTE: Vector may peform better for these structures, but
 -- the code may not be as clean.
 data LookupTable a = NewLookupTable {
@@ -154,11 +160,12 @@ attemptNonceRecursive
 -- Theoretically we're guaranteed to eventually find a solution.
 findNonceForBucket
   :: (Hashing.ToHashableChunks a)
-  => Nonce -- ^ nonce to attempt
+  => AlgorithmParams
+  -> Nonce -- ^ nonce to attempt
   -> SimpleIntMapAndSize b
   -> [(a, b)] -- ^ colliding keys for this bucket
   -> PlacementAttempt (a, b)
-findNonceForBucket nonce_attempt values_and_size bucket =
+findNonceForBucket p@(AlgorithmParams getNextNonce) nonce_attempt values_and_size bucket =
 
   -- This is a "lazy" (and awkward) way to specify recursion:
   -- If the result ("result_for_this_iteration") at this iteration of the recursion
@@ -167,26 +174,25 @@ findNonceForBucket nonce_attempt values_and_size bucket =
   maybe
     recursive_result
     f
-    unpacked_result
+    maybe_result_for_this_iteration
 
   where
-    f = PlacementAttempt nonce_attempt . flip (zipWith SingletonBucket) bucket
+    f = PlacementAttempt nonce_attempt .
+      flip (zipWith SingletonBucket) bucket . map Hashing.getIndex
 
     -- NOTE: attemptNonceRecursive returns a list of "Maybe SlotIndex"
     -- records. If *any* of those elements are Nothing (that is, at
     -- least one of the slots were not successfully placed), then
     -- sequenceA of that list will become Nothing.
-    result_for_this_iteration = sequenceA $ attemptNonceRecursive
+    maybe_result_for_this_iteration = sequenceA $ attemptNonceRecursive
       values_and_size
       nonce_attempt
       mempty
       bucket
 
-    -- TODO Change the type of findNonceForBucket so that we don't need this
-    unpacked_result = fmap (map Hashing.getIndex) result_for_this_iteration
-
     recursive_result = findNonceForBucket
-      (Nonces.nextCandidate nonce_attempt)
+      p
+      (getNextNonce nonce_attempt)
       values_and_size
       bucket
 
@@ -196,11 +202,13 @@ findNonceForBucket nonce_attempt values_and_size bucket =
 -- and all previously placed buckets.
 handleMultiBuckets
   :: (Hashing.ToHashableChunks a)
-  => ArraySize
+  => AlgorithmParams
+  -> ArraySize
   -> LookupTable b
   -> HashBucket (a, b)
   -> LookupTable b
 handleMultiBuckets
+    algorithm_params
     size
     old_lookup_table
     (HashBucket computed_hash bucket) =
@@ -215,7 +223,7 @@ handleMultiBuckets
     -- but keeps incrementing it until all of the keys in this
     -- bucket are placeable.
     PlacementAttempt nonce slots_for_bucket =
-      findNonceForBucket (Nonces.Nonce 1) sized_vals_dict bucket
+      findNonceForBucket algorithm_params (Nonces.Nonce 1) sized_vals_dict bucket
 
     new_g = IntMap.insert computed_hash nonce old_g
 
@@ -231,10 +239,11 @@ handleMultiBuckets
 -- the empty buckets.
 findCollisionNonces
   :: (Hashing.ToHashableChunks a)
-  => ArraySize
+  => AlgorithmParams
+  -> ArraySize
   -> SortedList (HashBucket (a, b))
   -> (LookupTable b, [SingletonBucket (a, b)])
-findCollisionNonces size sorted_bucket_hash_tuples =
+findCollisionNonces algorithm_params size sorted_bucket_hash_tuples =
 
   (lookup_table, remaining_words)
   where
@@ -251,7 +260,7 @@ findCollisionNonces size sorted_bucket_hash_tuples =
     -- first, making it improbable that the large buckets will be placeable,
     -- and potentially resulting in an infinite loop.
     lookup_table = foldl'
-      (handleMultiBuckets size)
+      (handleMultiBuckets algorithm_params size)
       emptyLookupTable
       multi_entry_buckets
 
@@ -304,6 +313,7 @@ createMinimalPerfectHash original_words_dict =
     -- TODO: Rename this variable: "remaining_word_hash_tuples"
     (intermediate_lookup_table, remaining_word_hash_tuples) =
       findCollisionNonces
+        (AlgorithmParams (Nonces.mapNonce (+1)))
         size
         sorted_bucket_hash_tuples
 

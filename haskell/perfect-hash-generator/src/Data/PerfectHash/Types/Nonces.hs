@@ -16,8 +16,8 @@ instance Default Nonce where
   def = Nonce 0
 
 
-nextCandidate :: Nonce -> Nonce
-nextCandidate (Nonce x) = Nonce $ x + 1
+mapNonce :: (Int -> Int) -> Nonce -> Nonce
+mapNonce f (Nonce x) = Nonce $ f x
 
 
 isDirectSlot :: Nonce -> Bool
