@@ -41,7 +41,7 @@ import           Data.IntSet              (IntSet)
 import qualified Data.IntMap              as IntMap
 import           Data.IntMap              (IntMap)
 import qualified Data.Map as Map
-import           Data.Map                 (Map, (!))
+import           Data.Map                 (Map)
 import Data.Function (on)
 import           Data.Ord                 (Down (Down))
 import qualified Data.Vector      as Vector
@@ -78,13 +78,19 @@ instance Ord (HashBucket a) where
   compare = compare `on` (Down . length . bucketMembers)
 
 
+data TupledMapAndSize a = TupledMapAndSize [a] ArraySize
+data SimpleIntMapAndSize a = SimpleIntMapAndSize (IntMap a) ArraySize
+
+
+-- | slots for each bucket, with the current nonce attempt
+data PlacementAttempt a = PlacementAttempt Nonce [SingletonBucket a]
+
+
 emptyLookupTable :: LookupTable a
 emptyLookupTable = NewLookupTable mempty mempty
 
 
-data MapAndSize a b = MapAndSize (Map a b) ArraySize
-data IntMapAndSize a = IntMapAndSize (IntMap a) ArraySize
-
+-- * Functions
 
 convertToVector
   :: (Default a)
@@ -109,24 +115,24 @@ convertToVector x = Lookup.LookupTable a1 a2
 -- yields a collision when using the new nonce.
 attemptNonceRecursive
   :: Hashing.ToHashableChunks a
-  => IntMapAndSize b
+  => SimpleIntMapAndSize b
   -> Nonce
   -> IntSet -- ^ occupied slots
-  -> [a] -- ^ keys
+  -> [(a, b)] -- ^ keys
   -> [Maybe Hashing.SlotIndex]
 attemptNonceRecursive _ _ _ [] = []
 attemptNonceRecursive
     values_and_size
     nonce
     occupied_slots
-    (current_key:remaining_bucket_keys) =
+    ((current_key, _):remaining_bucket_keys) =
 
   if cannot_use_slot
     then pure Nothing
     else Just slot : recursive_result
 
   where
-    IntMapAndSize values size = values_and_size
+    SimpleIntMapAndSize values size = values_and_size
     slot = Hashing.hashToSlot nonce size current_key
 
     Hashing.SlotIndex slotval = slot
@@ -141,10 +147,6 @@ attemptNonceRecursive
       remaining_bucket_keys
 
 
--- | slots for each bucket, with the current nonce attempt
-data PlacementAttempt a = PlacementAttempt Nonce [SingletonBucket a]
-
-
 -- | Repeatedly try different values of the nonce until we find a hash function
 -- that places all items in the bucket into free slots.
 --
@@ -153,9 +155,9 @@ data PlacementAttempt a = PlacementAttempt Nonce [SingletonBucket a]
 findNonceForBucket
   :: (Hashing.ToHashableChunks a)
   => Nonce -- ^ nonce to attempt
-  -> IntMapAndSize b
-  -> [a] -- ^ colliding keys for this bucket
-  -> PlacementAttempt a
+  -> SimpleIntMapAndSize b
+  -> [(a, b)] -- ^ colliding keys for this bucket
+  -> PlacementAttempt (a, b)
 findNonceForBucket nonce_attempt values_and_size bucket =
 
   -- This is a "lazy" (and awkward) way to specify recursion:
@@ -180,8 +182,8 @@ findNonceForBucket nonce_attempt values_and_size bucket =
       mempty
       bucket
 
-    -- TODO Chage the type of findNonceForBucket so that we don't need this
-    unpacked_result = fmap (map (\(Hashing.SlotIndex x) -> x)) result_for_this_iteration
+    -- TODO Change the type of findNonceForBucket so that we don't need this
+    unpacked_result = fmap (map Hashing.getIndex) result_for_this_iteration
 
     recursive_result = findNonceForBucket
       (Nonces.nextCandidate nonce_attempt)
@@ -193,13 +195,13 @@ findNonceForBucket nonce_attempt values_and_size bucket =
 -- until one is found that results in no collisions for both this bucket
 -- and all previously placed buckets.
 handleMultiBuckets
-  :: (Hashing.ToHashableChunks a, Ord a)
-  => MapAndSize a b
+  :: (Hashing.ToHashableChunks a)
+  => ArraySize
   -> LookupTable b
-  -> HashBucket a
+  -> HashBucket (a, b)
   -> LookupTable b
 handleMultiBuckets
-    sized_words_dict
+    size
     old_lookup_table
     (HashBucket computed_hash bucket) =
 
@@ -207,9 +209,7 @@ handleMultiBuckets
   where
     NewLookupTable old_g old_values_dict = old_lookup_table
 
-    MapAndSize words_dict size = sized_words_dict
-
-    sized_vals_dict = IntMapAndSize old_values_dict size
+    sized_vals_dict = SimpleIntMapAndSize old_values_dict size
 
     -- This is assured to succeed; it starts with a nonce of 1
     -- but keeps incrementing it until all of the keys in this
@@ -221,8 +221,8 @@ handleMultiBuckets
 
     new_values_dict = foldr f old_values_dict slots_for_bucket
 
-    f (SingletonBucket slot_val bucket_val) = IntMap.insert slot_val $
-      words_dict ! bucket_val 
+    f (SingletonBucket slot_val (_, map_val)) =
+      IntMap.insert slot_val map_val
 
 
 -- | This function exploits the sorted structure of the list
@@ -230,11 +230,11 @@ handleMultiBuckets
 -- list. Then we filter the single-entry buckets by dropping
 -- the empty buckets.
 findCollisionNonces
-  :: (Hashing.ToHashableChunks a, Ord a)
-  => MapAndSize a b
-  -> SortedList (HashBucket a)
-  -> (LookupTable b, [SingletonBucket a])
-findCollisionNonces sized_words_dict sorted_bucket_hash_tuples =
+  :: (Hashing.ToHashableChunks a)
+  => ArraySize
+  -> SortedList (HashBucket (a, b))
+  -> (LookupTable b, [SingletonBucket (a, b)])
+findCollisionNonces size sorted_bucket_hash_tuples =
 
   (lookup_table, remaining_words)
   where
@@ -251,7 +251,7 @@ findCollisionNonces sized_words_dict sorted_bucket_hash_tuples =
     -- first, making it improbable that the large buckets will be placeable,
     -- and potentially resulting in an infinite loop.
     lookup_table = foldl'
-      (handleMultiBuckets sized_words_dict)
+      (handleMultiBuckets size)
       emptyLookupTable
       multi_entry_buckets
 
@@ -259,7 +259,6 @@ findCollisionNonces sized_words_dict sorted_bucket_hash_tuples =
       convertToSingletonBucket
       single_or_fewer_buckets
 
-    convertToSingletonBucket :: HashBucket a -> Maybe (SingletonBucket a)
     convertToSingletonBucket (HashBucket hashVal elements) =
       SingletonBucket hashVal <$> Maybe.listToMaybe elements
 
@@ -267,18 +266,16 @@ findCollisionNonces sized_words_dict sorted_bucket_hash_tuples =
 -- | Sort buckets by descending size
 preliminaryBucketPlacement
   :: (Hashing.ToHashableChunks a)
-  => Map a b
-  -> SortedList (HashBucket a)
-preliminaryBucketPlacement words_dict =
+  => TupledMapAndSize (a, b)
+  -> SortedList (HashBucket (a, b))
+preliminaryBucketPlacement tuplified_words_dict_and_size =
   toSortedList bucket_hash_tuples
   where
-    size = Hashing.ArraySize $ Map.size words_dict
+    TupledMapAndSize tuplified_words_dict size = tuplified_words_dict_and_size
 
-    f z = x
-      where
-        Hashing.SlotIndex x = Hashing.hashToSlot (Nonces.Nonce 0) size z
+    f = Hashing.getIndex . Hashing.hashToSlot (Nonces.Nonce 0) size . fst
 
-    slot_key_pairs = deriveTuples f $ Map.keys words_dict
+    slot_key_pairs = deriveTuples f tuplified_words_dict
 
     bucket_hash_tuples = map (uncurry HashBucket) $
       IntMap.toList $ binTuplesBySecond slot_key_pairs
@@ -292,21 +289,22 @@ preliminaryBucketPlacement words_dict =
 -- A 'Map' is required as input to guarantee that there are
 -- no duplicate keys.
 createMinimalPerfectHash
-  :: (Hashing.ToHashableChunks k, Ord k, Default v)
+  :: (Hashing.ToHashableChunks k, Default v)
   => Map k v -- ^ key-value pairs
   -> Lookup.LookupTable v
      -- ^ output for use by 'LookupTable.lookup' or a custom code generator
-createMinimalPerfectHash words_dict =
+createMinimalPerfectHash original_words_dict =
   convertToVector $ NewLookupTable final_g final_values
   where
-    size = Hashing.ArraySize $ Map.size words_dict
-
-    sorted_bucket_hash_tuples = preliminaryBucketPlacement words_dict
+    tuplified_words_dict = Map.toList original_words_dict
+    size = Hashing.ArraySize $ length tuplified_words_dict
+    tuplified_words_dict_and_size = TupledMapAndSize tuplified_words_dict size
+    sorted_bucket_hash_tuples = preliminaryBucketPlacement tuplified_words_dict_and_size
 
     -- TODO: Rename this variable: "remaining_word_hash_tuples"
     (intermediate_lookup_table, remaining_word_hash_tuples) =
       findCollisionNonces
-        (MapAndSize words_dict size)
+        size
         sorted_bucket_hash_tuples
 
     isUnusedSlot (Hashing.SlotIndex s) =
@@ -322,9 +320,8 @@ createMinimalPerfectHash words_dict =
     f1 (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
       -- Observe here that both the output and input
       -- are nonces:
-      IntMap.insert computed_hash $ Nonces.Nonce x
-      where
-        Hashing.SlotIndex x = Lookup.encodeDirectEntry $
+      IntMap.insert computed_hash $ Nonces.Nonce $
+        Hashing.getIndex $ Lookup.encodeDirectEntry $
           Nonces.Nonce free_slot_index
 
     final_g = foldr
@@ -332,9 +329,8 @@ createMinimalPerfectHash words_dict =
       (redirs intermediate_lookup_table)
       zipped_remaining_with_unused_slots
 
-    f2 (SingletonBucket _ word, Hashing.SlotIndex free_slot_index) =
-      IntMap.insert free_slot_index $
-        words_dict ! word
+    f2 (SingletonBucket _ (_, map_value), Hashing.SlotIndex free_slot_index) =
+      IntMap.insert free_slot_index map_value
 
     final_values = foldr
       f2

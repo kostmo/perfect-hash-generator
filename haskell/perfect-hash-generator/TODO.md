@@ -1,5 +1,6 @@
 # TODO
 
 * Refine diagram
-* Don't require Ord constraint on construction function
-    * Requires that the Value be carried along with the key throughout
+* TODO Change the type of findNonceForBucket so we don't need an unpacking function
+* Use sum types to indicate "overloading" of nonces as direct mappings; defer
+  the integral encoding to a "render" phase

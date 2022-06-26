@@ -22,7 +22,7 @@ import qualified Data.PerfectHash.Types.Nonces as Nonces
 import Data.PerfectHash.Types.Nonces (Nonce)
 
 
-newtype SlotIndex = SlotIndex Int
+newtype SlotIndex = SlotIndex {getIndex :: Int}
 
 type Hash = Int
 
