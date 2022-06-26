@@ -4,6 +4,7 @@ resolver: lts-19.8
 # Local packages, usually specified by relative directory name
 packages:
 - perfect-hash-generator
+- phg-diagrams
 
 #The intention of this option is to prevent file permission problems, for example as the result of a stack command executed under sudo.
 allow-different-user: true

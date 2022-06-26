@@ -89,6 +89,9 @@ dependencies:
 - binary
 - bytestring
 - text
+extra-doc-files:
+#- docs/images/*
+- docs/images/algorithm-diagram.svg
 library:
   source-dirs: src
   dependencies:

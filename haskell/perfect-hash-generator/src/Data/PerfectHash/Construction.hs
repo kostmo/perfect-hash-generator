@@ -2,14 +2,10 @@
 
 -- | Constructs a minimal perfect hash from a map of key-value pairs.
 --
--- Implementation was adapted from
--- <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's Blog>.
--- A refactoring of that Python implementation may be found
--- <https://github.com/kostmo/perfect-hash-generator/blob/master/python/perfect-hash.py here>.
--- This Haskell implementation was transliterated and evolved from that refactoring.
---
 -- = Overview of algorithm
 -- A two-input hash function @F(nonce, key)@ is used.
+--
+-- <<docs/images/algorithm-diagram.svg>>
 --
 -- 1. Keys are hashed into buckets for the first round with a nonce of @0@.
 -- 1. Iterating over each bucket of size >= 2 in order of decreasing size, keep
@@ -23,6 +19,14 @@
 --
 -- According to <http://cmph.sourceforge.net/papers/esa09.pdf this paper>,
 -- the algorithm is assured to run in linear time.
+--
+-- = Provenance
+-- This implementation was adapted from
+-- <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's Blog>.
+-- A refactoring of that Python implementation may be found
+-- <https://github.com/kostmo/perfect-hash-generator/blob/master/python/perfect-hash.py here>.
+-- This Haskell implementation was transliterated and evolved from that refactoring.
+--
 module Data.PerfectHash.Construction (
     createMinimalPerfectHash
   ) where
@@ -256,9 +260,8 @@ findCollisionNonces sized_words_dict sorted_bucket_hash_tuples =
       single_or_fewer_buckets
 
     convertToSingletonBucket :: HashBucket a -> Maybe (SingletonBucket a)
-    convertToSingletonBucket (HashBucket hashVal elements) = do
-      first_elem <- Maybe.listToMaybe elements
-      return $ SingletonBucket hashVal first_elem
+    convertToSingletonBucket (HashBucket hashVal elements) =
+      SingletonBucket hashVal <$> Maybe.listToMaybe elements
 
 
 -- | Sort buckets by descending size
