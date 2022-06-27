@@ -1,5 +1,5 @@
 name: perfect-hash-generator
-version: '0.2.0.6'
+version: '1.0.0'
 synopsis: Perfect minimal hashing implementation in native Haskell
 description: ! '
 A <https://en.wikipedia.org/wiki/Perfect_hash_function perfect hash function>
