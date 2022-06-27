@@ -83,7 +83,15 @@ tests = [
     , testCase "word-lookups-text" $ testHashLookups wordIndexTuplesText
     , testCase "int-lookups" $ testHashLookups intMapTuples
     ]
+  , testGroup "Large scale round-tripping with random inputs" [
+      testCase "integers" $ assertBool "Lookups failed to match input" $
+        isRight $ Exercise.testPerfectLookups lookup_table intMapTuples
+    ]
   ]
+  where
+    intMapTuples = Exercise.mkIntMapTuples 100000
+    lookup_table = Construction.createMinimalPerfectHash intMapTuples
+    
 
 
 main = defaultMain tests

@@ -2,7 +2,7 @@ name: perfect-hash-generator-diagrams
 version: '0.1.0.0'
 synopsis: Diagrams for PHG
 description: ! '
-Blah
+Generate documentation diagrams for Perfect Hash Generator
 '
 
 author: Karl Ostmo <kostmo@gmail.com>

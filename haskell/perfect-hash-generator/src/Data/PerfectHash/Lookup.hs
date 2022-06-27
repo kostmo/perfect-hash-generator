@@ -23,7 +23,7 @@ import qualified Data.PerfectHash.Types.Nonces as Nonces
 -- There are two arrays used in successive stages of the lookup.
 -- In this implementation, both arrays are the same length.
 data LookupTable a = LookupTable {
-    nonces :: Vector Nonce
+    nonces :: Vector Int
     -- ^ This is the intermediate lookup table.
     --
     -- In the lookup process, the key's hash is computed first with a nonce of
@@ -47,18 +47,34 @@ size :: LookupTable a -> Hashing.ArraySize
 size = Hashing.ArraySize . Vector.length . values
 
 
--- | NOTE: We subtract one to ensure it's negative even if the
+-- NOTE: We subtract one to ensure it's negative even if the
 -- zeroeth slot was used. This lets us test for "direct encoding"
 -- by checking of the value is negative.
-encodeDirectEntry :: Nonce -> Hashing.SlotIndex
-encodeDirectEntry (Nonce val) =
-  Hashing.SlotIndex $ subtract 1 $ negate val
+encodeDirectEntry :: Hashing.SlotIndex -> Int
+encodeDirectEntry (Hashing.SlotIndex val) =
+  subtract 1 $ negate val
+
+
+-- | NOTE: negation, followed by subtracting 1 is its own self-inverse.
+--
+-- Example:
+-- > a = 7
+-- > f(a) = -7 - 1
+-- >      = -8
+-- >
+-- > a' = -8
+-- > f(a') = -(-8) - 1
+-- >      = 8 - 1
+-- >      = 7
+decodeDirectEntry :: Int -> Hashing.SlotIndex
+decodeDirectEntry val =
+  Hashing.SlotIndex $ encodeDirectEntry $ Hashing.SlotIndex val
 
 
 -- | For embedded applications, this function would usually be re-implemented
 -- in C code.
 --
--- == Algorithm description
+-- == Procedure description
 -- The lookup procedure is three steps:
 --
 --     1. Compute the 'Hashing.hash' (with a nonce of zero) of the "key", modulo
@@ -91,5 +107,5 @@ lookup lookup_table key =
 
     -- Negative nonce value indicates that we don't need extra lookup layer
     Hashing.SlotIndex v_key = if Nonces.isDirectSlot nonce
-      then encodeDirectEntry nonce
-      else Hashing.hashToSlot nonce table_size key
+      then decodeDirectEntry nonce
+      else Hashing.hashToSlot (Nonces.Nonce nonce) table_size key

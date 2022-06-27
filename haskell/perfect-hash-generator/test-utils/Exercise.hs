@@ -6,6 +6,9 @@ import           Control.Monad            (unless)
 import           Data.Foldable            (traverse_)
 import qualified Data.Map as Map
 import           Data.Map                 (Map)
+import           Data.IntSet              (IntSet)
+import qualified Data.IntSet              as IntSet
+import           System.Random            (RandomGen, mkStdGen, random)
 
 import qualified Data.PerfectHash.Hashing as Hashing
 import qualified Data.PerfectHash.Lookup  as Lookup
@@ -58,6 +61,40 @@ wordsFromFile path = do
   file_lines <- readFile path
   return $ zip (lines file_lines) [1..]
 
+
+-- * Random integers
+
+data RandIntAccum t = RandIntAccum
+  t -- ^ random number generator
+  Int -- ^ max count
+  IntSet -- ^ accumulated unique random numbers
+
+
+mkIntMapTuples :: Int -> Map Int Int
+mkIntMapTuples valueCount = Map.fromList $ zip random_ints [1..]
+  where
+    seed_value = RandIntAccum (mkStdGen 0) valueCount IntSet.empty
+    random_ints = IntSet.toList $ getUniqueRandomIntegers seed_value
+
+
+-- | Since computing the size of the set is O(N), we
+-- maintain the count separately.
+getUniqueRandomIntegers :: RandomGen t => RandIntAccum t -> IntSet
+getUniqueRandomIntegers (RandIntAccum std_gen count current_set) =
+
+  if count == 0
+    then current_set
+    else getUniqueRandomIntegers newstate
+
+  where
+    (next_int, next_std_gen) = random std_gen
+
+    a = RandIntAccum next_std_gen
+    newstate = if IntSet.member next_int current_set
+      then a count current_set
+      else a (count - 1) (IntSet.insert next_int current_set)
+
+-- * Other utilities
 
 eitherExit :: Either String b -> IO ()
 eitherExit x = case x of

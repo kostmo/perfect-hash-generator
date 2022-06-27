@@ -21,6 +21,7 @@ import qualified Data.Text            as T
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 import Data.PerfectHash.Types.Nonces (Nonce)
 
+-- Types
 
 newtype SlotIndex = SlotIndex {getIndex :: Int}
 
@@ -31,13 +32,19 @@ newtype ArraySize = ArraySize Int
   deriving Show
 
 
-generateArrayIndices :: ArraySize -> [SlotIndex]
-generateArrayIndices (ArraySize size) = map SlotIndex [0..(size - 1)]
+-- * Constants
+
+-- | This choice of prime number @0x01000193@ was taken from the Python implementation
+-- on <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's page>.
+primeFNV :: Int
+primeFNV = 0x01000193
 
 
 mask32bits :: Int
 mask32bits = 0xffffffff
 
+
+-- * Class instances
 
 -- | Mechanism for a key to be decomposed into units processable by the
 -- <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV-1a> hashing algorithm.
@@ -53,6 +60,13 @@ instance ToHashableChunks String where
 instance ToHashableChunks Text where
   toHashableChunks = toHashableChunks . T.unpack
 
+-- Utilities
+
+generateArrayIndices :: ArraySize -> [SlotIndex]
+generateArrayIndices (ArraySize size) = map SlotIndex [0..(size - 1)]
+
+
+-- * Main functions
 
 hashToSlot :: ToHashableChunks a =>
      Nonce
@@ -61,6 +75,14 @@ hashToSlot :: ToHashableChunks a =>
   -> SlotIndex
 hashToSlot nonce (ArraySize size) key =
   SlotIndex $ getHash (hash nonce key) `mod` size
+
+
+-- Used in the 'hash' function
+getNonzeroNonceVal :: Nonce -> Int
+getNonzeroNonceVal (Nonces.Nonce nonce) =
+  if nonce == 0
+    then primeFNV
+    else nonce
 
 
 -- | The interface is comparable to the
@@ -84,6 +106,6 @@ hash nonce =
   -- NOTE: This must be 'foldl', not 'foldr'
   Hash . foldl' combine d . toHashableChunks
   where
-    d = Nonces.getNonzeroNonceVal nonce
+    d = getNonzeroNonceVal nonce
 
-    combine acc = (.&. mask32bits) . (* Nonces.primeFNV) . xor acc . getHash
+    combine acc = (.&. mask32bits) . (* primeFNV) . xor acc . getHash

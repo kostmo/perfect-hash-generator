@@ -1,11 +1,5 @@
 module Main where
 
-import           System.Random                 (RandomGen, mkStdGen, random)
-
-import qualified Data.Map as Map
-import           Data.Map                 (Map)
-import           Data.IntSet                   (IntSet)
-import qualified Data.IntSet                   as IntSet
 import qualified Data.Vector           as Vector
 import           System.CPUTime
 import           Text.Printf
@@ -48,43 +42,12 @@ main = run =<< execParser opts
      <> header "int test" )
 
 
-data RandIntAccum t = RandIntAccum
-  t -- ^ random number generator
-  Int -- ^ max count
-  IntSet -- ^ accumulated unique random numbers
-
-
 doTimed :: Either String a -> IO Double
 doTimed go = do
   start <- getCPUTime
   Exercise.eitherExit go
   end   <- getCPUTime
   return $ fromIntegral (end - start) / (10^12)
-
-
--- | Since computing the size of the set is O(N), we
--- maintain the count separately.
-getUniqueRandomIntegers :: RandomGen t => RandIntAccum t -> IntSet
-getUniqueRandomIntegers (RandIntAccum std_gen count current_set) =
-
-  if count == 0
-    then current_set
-    else getUniqueRandomIntegers newstate
-
-  where
-    (next_int, next_std_gen) = random std_gen
-
-    a = RandIntAccum next_std_gen
-    newstate = if IntSet.member next_int current_set
-      then a count current_set
-      else a (count - 1) (IntSet.insert next_int current_set)
-
-
-mkIntMapTuples :: Int -> Map Int Int
-mkIntMapTuples valueCount = Map.fromList $ zip random_ints [1..]
-  where
-    seed_value = RandIntAccum (mkStdGen 0) valueCount IntSet.empty
-    random_ints = IntSet.toList $ getUniqueRandomIntegers seed_value
 
 
 run (DemoOptions valueCount _debugEnabled) = do
@@ -124,4 +87,4 @@ run (DemoOptions valueCount _debugEnabled) = do
   putStrLn "Done."
 
   where
-    intMapTuples = mkIntMapTuples valueCount
+    intMapTuples = Exercise.mkIntMapTuples valueCount

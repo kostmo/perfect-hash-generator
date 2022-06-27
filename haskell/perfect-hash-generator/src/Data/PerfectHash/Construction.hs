@@ -8,14 +8,14 @@
 -- <<docs/images/algorithm-diagram.svg>>
 --
 -- 1. Keys are hashed into buckets for the first round with a nonce of @0@.
--- 1. Iterating over each bucket of size >= 2 in order of decreasing size, keep
+-- 1. Iterating over each bucket of size @>= 2@ in order of decreasing size, keep
 --    testing different nonce values until all members
 --    of the bucket fall into open slots in the final array.
 --    When a successful nonce is found, write it to the \"intermediate\" array
 --    at the bucket's position.
--- 1. For each bucket of size 1, select an arbitrary open slot in the final
+-- 1. For each bucket of size @1@, select an arbitrary open slot in the final
 --    array, and write the slot's
---    index (after negation and subtracting 1) to the intermediate array.
+--    index (after negation and subtracting @1@) to the intermediate array.
 --
 -- According to <http://cmph.sourceforge.net/papers/esa09.pdf this paper>,
 -- the algorithm is assured to run in linear time.
@@ -61,10 +61,18 @@ data AlgorithmParams = AlgorithmParams {
   }
 
 
+data NonceOrDirect =
+    WrappedNonce Nonce
+  | DirectEntry Hashing.SlotIndex
+
+instance Default NonceOrDirect where
+  def = WrappedNonce def
+
+
 -- | NOTE: Vector might perform better for these structures, but
 -- the code may not be as clean.
 data LookupTable a = NewLookupTable {
-    nonces :: IntMap Nonce
+    nonces :: IntMap NonceOrDirect
   , vals   :: IntMap a
   }
 
@@ -111,6 +119,12 @@ defaultAlgorithmParams = AlgorithmParams
 
 -- * Functions
 
+toRedirector :: NonceOrDirect -> Int
+toRedirector (WrappedNonce (Nonces.Nonce x)) = x
+toRedirector (DirectEntry free_slot_index) =
+  Lookup.encodeDirectEntry free_slot_index
+
+
 convertToVector
   :: (Default a)
   => LookupTable a
@@ -118,11 +132,17 @@ convertToVector
 convertToVector x = Lookup.LookupTable a1 a2
   where
     size = length $ vals x
-    vectorize input = Vector.generate size $
+    
+    vectorizeNonces input = Vector.generate size $
+      toRedirector . flip (IntMap.findWithDefault def) input
+
+    a1 = vectorizeNonces $ nonces x
+
+
+    vectorizeVals input = Vector.generate size $
       flip (IntMap.findWithDefault def) input
 
-    a1 = vectorize $ nonces x
-    a2 = vectorize $ vals x
+    a2 = vectorizeVals $ vals x
 
 
 -- | Computes a slot in the destination array (Data.PerfectHash.Lookup.values)
@@ -242,7 +262,10 @@ processMultiEntryBuckets
         sized_vals_dict
         bucket_members
 
-    new_nonces = IntMap.insert (Hashing.getHash computed_hash) nonce old_nonces
+    new_nonces = IntMap.insert
+      (Hashing.getHash computed_hash)
+      (WrappedNonce nonce)
+      old_nonces
 
     new_values_dict = foldr place_values old_values_dict slots_for_bucket
 
@@ -329,12 +352,10 @@ assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_
     zipped_remaining_with_unused_slots =
       zip non_colliding_buckets unused_slots
 
-    insertDirectEntry (SingletonBucket computed_hash _, Hashing.SlotIndex free_slot_index) =
+    insertDirectEntry (SingletonBucket computed_hash _, free_slot_index) =
       -- Observe here that both the output and input
       -- are nonces:
-      IntMap.insert (Hashing.getHash computed_hash) $ Nonces.Nonce $
-        Hashing.getIndex $ Lookup.encodeDirectEntry $
-          Nonces.Nonce free_slot_index
+      IntMap.insert (Hashing.getHash computed_hash) $ DirectEntry free_slot_index
 
     final_nonces = foldr
       insertDirectEntry
@@ -361,7 +382,7 @@ createMinimalPerfectHash
   :: (Hashing.ToHashableChunks k, Default v)
   => Map k v -- ^ key-value pairs
   -> Lookup.LookupTable v
-     -- ^ output for use by 'LookupTable.lookup' or a custom code generator
+     -- ^ output for use by 'Lookup.lookup' or a custom code generator
 createMinimalPerfectHash original_words_dict =
   convertToVector final_solution
   where

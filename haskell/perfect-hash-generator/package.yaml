@@ -144,3 +144,4 @@ tests:
     - hashable
     - vector
     - containers
+    - random
