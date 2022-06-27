@@ -92,6 +92,7 @@ dependencies:
 extra-doc-files:
 #- docs/images/*
 - docs/images/algorithm-diagram.svg
+extra-source-files: changelog.md
 library:
   source-dirs: src
   dependencies:
