@@ -16,14 +16,14 @@ ghc-options:
 - -W
 dependencies:
 - base >= 4.5 && < 5
-- diagrams
-- diagrams-lib
 
 library:
   source-dirs: src
   dependencies:
   - containers
   - diagrams-lib
+  - diagrams-svg
+  - palette
 
 executables: 
   mk-diagram:
@@ -31,5 +31,5 @@ executables:
     source-dirs:
     - mk-diagram
     dependencies:
-    - diagrams
+    - perfect-hash-generator-diagrams
     - diagrams-svg
