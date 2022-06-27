@@ -5,8 +5,6 @@
 -- = Overview of algorithm
 -- A two-input hash function @F(nonce, key)@ is used.
 --
--- <<docs/images/algorithm-diagram.svg>>
---
 -- 1. Keys are hashed into buckets for the first round with a nonce of @0@.
 -- 1. Iterating over each bucket of size @>= 2@ in order of decreasing size, keep
 --    testing different nonce values until all members
