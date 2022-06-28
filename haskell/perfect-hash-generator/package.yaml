@@ -85,7 +85,6 @@ ghc-options:
 - -W
 dependencies:
 - base >= 4.5 && < 5
-- unordered-containers
 - binary
 - bytestring
 - text
@@ -98,10 +97,6 @@ library:
   dependencies:
   - containers
   - data-default
-  - data-ordlist
-  - directory
-  - filepath
-  - hashable
   - vector
   - sorted-list
 executables:
@@ -115,7 +110,6 @@ executables:
     - random
     - optparse-applicative
     - vector
-    - hashable
     - containers
   hash-perfectly-ints-demo:
     main: Main.hs
@@ -127,7 +121,17 @@ executables:
     - random
     - optparse-applicative
     - vector
-    - hashable
+    - containers
+  gen-c-code-from-file:
+    main: Main.hs
+    source-dirs:
+    - demo/gen-c-code-from-file
+    - test-utils
+    dependencies:
+    - perfect-hash-generator
+    - random
+    - optparse-applicative
+    - vector
     - containers
 tests:
   regression-tests:
@@ -137,12 +141,10 @@ tests:
     - test-utils
     dependencies:
     - perfect-hash-generator
-    - optparse-applicative
     - data-default
     - test-framework
     - HUnit
     - test-framework-hunit
-    - hashable
     - vector
     - containers
     - random
