@@ -31,7 +31,6 @@ module Data.PerfectHash.Construction (
 
 import Control.Arrow (first)
 import Data.Tuple (swap)
-import           Data.Default             (Default, def)
 import           Control.Monad            (join)
 import Data.SortedList (SortedList, toSortedList, fromSortedList)
 import           Data.Foldable            (foldl')
@@ -62,9 +61,7 @@ data AlgorithmParams = AlgorithmParams {
 data NonceOrDirect =
     WrappedNonce Nonce
   | DirectEntry Hashing.SlotIndex
-
-instance Default NonceOrDirect where
-  def = WrappedNonce def
+  | UnusedSlot
 
 
 -- | NOTE: Vector might perform better for these structures, but
@@ -121,26 +118,27 @@ toRedirector :: NonceOrDirect -> Int
 toRedirector (WrappedNonce (Nonces.Nonce x)) = x
 toRedirector (DirectEntry free_slot_index) =
   Lookup.encodeDirectEntry free_slot_index
+toRedirector UnusedSlot = 0
 
 
 convertToVector
-  :: (Default a)
-  => LookupTable a
+  :: LookupTable a
   -> Lookup.LookupTable a
 convertToVector x = Lookup.LookupTable a1 a2
   where
     size = length $ vals x
     
+    -- The keys of the "nonces" map may not be consecutive integers,
+    -- since by virtue of the algorithm some nonces are used for
+    -- multiple keys.
     vectorizeNonces input = Vector.generate size $
-      toRedirector . flip (IntMap.findWithDefault def) input
+      toRedirector . flip (IntMap.findWithDefault UnusedSlot) input
 
     a1 = vectorizeNonces $ nonces x
 
-
-    vectorizeVals input = Vector.generate size $
-      flip (IntMap.findWithDefault def) input
-
-    a2 = vectorizeVals $ vals x
+    -- The keys of the "vals" map are consecutive integers
+    -- starting with 0.
+    a2 = Vector.fromList $ map snd $ IntMap.toAscList $ vals x
 
 
 -- | Computes a slot in the destination array (Data.PerfectHash.Lookup.values)
@@ -377,7 +375,7 @@ assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_
 -- A 'Map' is required as input to guarantee that there are
 -- no duplicate keys.
 createMinimalPerfectHash
-  :: (Hashing.ToHashableChunks k, Default v)
+  :: (Hashing.ToHashableChunks k)
   => Map k v -- ^ key-value pairs
   -> Lookup.LookupTable v
      -- ^ output for use by 'Lookup.lookup' or a custom code generator

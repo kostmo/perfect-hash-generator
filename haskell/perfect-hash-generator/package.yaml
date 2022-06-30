@@ -83,6 +83,7 @@ license-file: LICENSE
 ghc-options:
 - -fwarn-tabs
 - -W
+- -Werror
 dependencies:
 - base >= 4.5 && < 5
 - binary
@@ -91,12 +92,11 @@ dependencies:
 extra-doc-files:
 #- docs/images/*
 - docs/images/algorithm-diagram.svg
-extra-source-files: changelog.md
+extra-source-files: CHANGELOG.md
 library:
   source-dirs: src
   dependencies:
   - containers
-  - data-default
   - vector
   - sorted-list
 executables:
@@ -141,7 +141,6 @@ tests:
     - test-utils
     dependencies:
     - perfect-hash-generator
-    - data-default
     - test-framework
     - HUnit
     - test-framework-hunit

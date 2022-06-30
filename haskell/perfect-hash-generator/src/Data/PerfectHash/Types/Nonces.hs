@@ -1,17 +1,11 @@
 {-# OPTIONS_HADDOCK hide #-}
 module Data.PerfectHash.Types.Nonces where
 
-import           Data.Default             (Default, def)
-
 
 -- * Types
 
 newtype Nonce = Nonce Int
   deriving Show
-
-instance Default Nonce where
-  def = Nonce 0
-
 
 
 -- * Helper functions

@@ -6,5 +6,8 @@ packages:
 - perfect-hash-generator
 - phg-diagrams
 
+ghc-options:
+  "$locals": -fwrite-ide-info
+
 #The intention of this option is to prevent file permission problems, for example as the result of a stack command executed under sudo.
 allow-different-user: true
