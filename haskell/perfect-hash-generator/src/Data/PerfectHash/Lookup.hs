@@ -92,20 +92,25 @@ decodeDirectEntry val =
 --     3. Use the result of (2) as the index into the 'values' array.
 lookup
   :: (Hashing.ToHashableChunks a)
-  => LookupTable b
+  => Hashing.HashFunction a
+  -> LookupTable b
   -> a -- ^ key
   -> b -- ^ value
-lookup lookup_table key =
+lookup hash_function lookup_table key =
 
   values lookup_table ! v_key
 
   where
     table_size = size lookup_table
 
-    Hashing.SlotIndex nonce_index = Hashing.hashToSlot (Nonce 0) table_size key
+    Hashing.SlotIndex nonce_index = Hashing.hashToSlot
+      hash_function
+      (Nonce 0)
+      table_size key
+
     nonce = nonces lookup_table ! nonce_index
 
     -- Negative nonce value indicates that we don't need extra lookup layer
     Hashing.SlotIndex v_key = if Nonces.isDirectSlot nonce
       then decodeDirectEntry nonce
-      else Hashing.hashToSlot (Nonces.Nonce nonce) table_size key
+      else Hashing.hashToSlot hash_function (Nonces.Nonce nonce) table_size key

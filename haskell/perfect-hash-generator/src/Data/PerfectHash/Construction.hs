@@ -52,7 +52,13 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 
-data AlgorithmParams = AlgorithmParams {
+data AlgorithmParams a = AlgorithmParams {
+    nonceParams :: NonceFindingParams
+  , hashFunction :: Hashing.HashFunction a
+  }
+
+
+data NonceFindingParams = NonceFindingParams {
     getNextNonceCandidate :: Nonce -> Nonce
   , startingNonce :: Nonce
   }
@@ -106,10 +112,12 @@ emptyLookupTable :: LookupTable a
 emptyLookupTable = NewLookupTable mempty mempty
 
 
-defaultAlgorithmParams :: AlgorithmParams
+defaultAlgorithmParams
+  :: Hashing.ToHashableChunks a
+  => AlgorithmParams a
 defaultAlgorithmParams = AlgorithmParams
-  (Nonces.mapNonce (+1))
-  (Nonces.Nonce 1)
+  (NonceFindingParams (Nonces.mapNonce (+1)) (Nonces.Nonce 1))
+  (Hashing.defaultHash)
 
 
 -- * Functions
@@ -150,13 +158,15 @@ convertToVector x = Lookup.LookupTable a1 a2
 -- yields a collision when using the new nonce.
 attemptNonceRecursive
   :: Hashing.ToHashableChunks a
-  => IntMapAndSize b
+  => AlgorithmParams a
+  -> IntMapAndSize b
   -> Nonce
   -> IntSet -- ^ occupied slots
   -> [(a, b)] -- ^ keys
   -> [Maybe Hashing.SlotIndex]
-attemptNonceRecursive _ _ _ [] = []
+attemptNonceRecursive _ _ _ _ [] = []
 attemptNonceRecursive
+    algorithm_params
     values_and_size
     nonce
     occupied_slots
@@ -168,7 +178,11 @@ attemptNonceRecursive
 
   where
     IntMapAndSize values size = values_and_size
-    slot = Hashing.hashToSlot nonce size current_key
+    slot = Hashing.hashToSlot
+      (hashFunction algorithm_params)
+      nonce
+      size
+      current_key
 
     Hashing.SlotIndex slotval = slot
 
@@ -176,6 +190,7 @@ attemptNonceRecursive
     cannot_use_slot = IntSet.member slotval occupied_slots || IntMap.member slotval values
 
     recursive_result = attemptNonceRecursive
+      algorithm_params
       values_and_size
       nonce
       (IntSet.insert slotval occupied_slots)
@@ -189,7 +204,7 @@ attemptNonceRecursive
 -- Theoretically we're guaranteed to eventually find a solution.
 findNonceForBucketRecursive
   :: (Hashing.ToHashableChunks a)
-  => AlgorithmParams
+  => AlgorithmParams a
   -> Nonce -- ^ nonce to attempt
   -> IntMapAndSize b
   -> [(a, b)] -- ^ colliding keys for this bucket
@@ -214,6 +229,7 @@ findNonceForBucketRecursive algorithm_params nonce_attempt values_and_size bucke
     -- least one of the slots were not successfully placed), then applying
     -- sequenceA to that list will yield Nothing.
     maybe_final_result = sequenceA $ attemptNonceRecursive
+      algorithm_params
       values_and_size
       nonce_attempt
       mempty
@@ -221,7 +237,7 @@ findNonceForBucketRecursive algorithm_params nonce_attempt values_and_size bucke
 
     recursive_result = findNonceForBucketRecursive
       algorithm_params
-      (getNextNonceCandidate algorithm_params nonce_attempt)
+      (getNextNonceCandidate (nonceParams algorithm_params) nonce_attempt)
       values_and_size
       bucket
 
@@ -231,7 +247,7 @@ findNonceForBucketRecursive algorithm_params nonce_attempt values_and_size bucke
 -- and all previously placed buckets.
 processMultiEntryBuckets
   :: (Hashing.ToHashableChunks a)
-  => AlgorithmParams
+  => AlgorithmParams a
   -> ArraySize
   -> LookupTable b
   -> HashBucket (a, b)
@@ -254,7 +270,7 @@ processMultiEntryBuckets
     PlacementAttempt nonce slots_for_bucket =
       findNonceForBucketRecursive
         algorithm_params
-        (startingNonce algorithm_params)
+        (startingNonce $ nonceParams algorithm_params)
         sized_vals_dict
         bucket_members
 
@@ -278,7 +294,7 @@ processMultiEntryBuckets
 -- all of the colliding nonces as fully placed.
 handleCollidingNonces
   :: (Hashing.ToHashableChunks a)
-  => AlgorithmParams
+  => AlgorithmParams a
   -> ArraySize
   -> SortedList (HashBucket (a, b))
   -> PartialSolution a b
@@ -314,14 +330,16 @@ handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
 -- | Hash the keys into buckets and sort them by descending size
 preliminaryBucketPlacement
   :: (Hashing.ToHashableChunks a)
-  => SizedList (a, b)
+  => AlgorithmParams a
+  -> SizedList (a, b)
   -> SortedList (HashBucket (a, b))
-preliminaryBucketPlacement sized_list =
+preliminaryBucketPlacement algo_params sized_list =
   toSortedList bucket_hash_tuples
   where
     SizedList tuplified_words_dict size = sized_list
 
-    f = Hashing.getIndex . Hashing.hashToSlot (Nonces.Nonce 0) size . fst
+    h = Hashing.hashToSlot (hashFunction algo_params) (Nonces.Nonce 0) size
+    f = Hashing.getIndex . h . fst
 
     slot_key_pairs = deriveTuples f tuplified_words_dict
 
@@ -386,7 +404,9 @@ createMinimalPerfectHash original_words_dict =
     size = Hashing.ArraySize $ length tuplified_words_dict
     sized_list = SizedList tuplified_words_dict size
 
-    sorted_bucket_hash_tuples = preliminaryBucketPlacement sized_list
+    sorted_bucket_hash_tuples = preliminaryBucketPlacement
+      defaultAlgorithmParams
+      sized_list
 
     partial_solution = handleCollidingNonces
       defaultAlgorithmParams

@@ -50,7 +50,7 @@ testPerfectLookups
   => Lookup.LookupTable b
   -> Map a b
   -> Either String ()
-testPerfectLookups = testLookupsHelper . Lookup.lookup
+testPerfectLookups = testLookupsHelper . Lookup.lookup Hashing.defaultHash
 
 
 -- | Generate a map of words from a file to their line numbers.

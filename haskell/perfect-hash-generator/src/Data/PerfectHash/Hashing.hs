@@ -21,7 +21,11 @@ import qualified Data.Text            as T
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 import Data.PerfectHash.Types.Nonces (Nonce)
 
+
 -- Types
+
+type HashFunction a = Nonce -> a -> Hash
+
 
 newtype SlotIndex = SlotIndex {getIndex :: Int}
 
@@ -31,17 +35,33 @@ newtype Hash = Hash {getHash :: Int}
 newtype ArraySize = ArraySize Int
   deriving Show
 
+data FNVParams = FNVParams {
+    initialBasis :: Hash
+  , magicPrime :: Hash
+  }
+
 
 -- * Constants
 
 -- | This choice of prime number @0x01000193@ was taken from the Python implementation
 -- on <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's page>.
-primeFNV :: Int
-primeFNV = 0x01000193
+primeFNV1a :: Hash
+primeFNV1a = Hash 0x01000193
 
 
 mask32bits :: Int
 mask32bits = 0xffffffff
+
+
+legacyFNV1aParms :: FNVParams
+legacyFNV1aParms = FNVParams {
+    initialBasis = primeFNV1a
+  , magicPrime = primeFNV1a
+  }
+
+
+defaultHash :: ToHashableChunks a => HashFunction a
+defaultHash = hash32 legacyFNV1aParms
 
 
 -- * Class instances
@@ -68,20 +88,22 @@ generateArrayIndices (ArraySize size) = map SlotIndex [0..(size - 1)]
 
 -- * Main functions
 
-hashToSlot :: ToHashableChunks a =>
-     Nonce
+hashToSlot
+  :: ToHashableChunks a
+  => HashFunction a
+  -> Nonce
   -> ArraySize
   -> a -- ^ key
   -> SlotIndex
-hashToSlot nonce (ArraySize size) key =
-  SlotIndex $ getHash (hash nonce key) `mod` size
+hashToSlot hash_function nonce (ArraySize size) key =
+  SlotIndex $ getHash (hash_function nonce key) `mod` size
 
 
 -- Used in the 'hash' function
-getNonzeroNonceVal :: Nonce -> Int
-getNonzeroNonceVal (Nonces.Nonce nonce) =
+getNonzeroNonceVal :: FNVParams -> Nonce -> Int
+getNonzeroNonceVal (FNVParams (Hash initial_basis) _) (Nonces.Nonce nonce) =
   if nonce == 0
-    then primeFNV
+    then initial_basis
     else nonce
 
 
@@ -97,15 +119,14 @@ getNonzeroNonceVal (Nonces.Nonce nonce) =
 -- >         hash = hash xor octet_of_data
 -- >         hash = hash * FNV_prime
 -- > return hash
-hash :: ToHashableChunks a =>
-     Nonce -- ^ nonce
-  -> a -- ^ key
-  -> Hash
-hash nonce =
+hash32 :: ToHashableChunks a =>
+     FNVParams
+  -> HashFunction a
+hash32 parms@(FNVParams _ (Hash magic_prime)) nonce =
 
   -- NOTE: This must be 'foldl', not 'foldr'
   Hash . foldl' combine d . toHashableChunks
   where
-    d = getNonzeroNonceVal nonce
+    d = getNonzeroNonceVal parms nonce
 
-    combine acc = (.&. mask32bits) . (* primeFNV) . xor acc . getHash
+    combine acc = (.&. mask32bits) . (* magic_prime) . xor acc . getHash
