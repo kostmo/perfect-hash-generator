@@ -91,7 +91,7 @@ decodeDirectEntry val =
 --
 --     3. Use the result of (2) as the index into the 'values' array.
 lookup
-  :: (Hashing.ToHashableChunks a)
+  :: (Hashing.ToOctets a)
   => Hashing.HashFunction a
   -> LookupTable b
   -> a -- ^ key

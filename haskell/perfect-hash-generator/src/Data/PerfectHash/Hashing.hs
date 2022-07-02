@@ -35,6 +35,8 @@ newtype Hash = Hash {getHash :: Int}
 newtype ArraySize = ArraySize Int
   deriving Show
 
+-- | Parameters for FVN hashing algorithm
+-- See http://isthe.com/chongo/tech/comp/fnv/
 data FNVParams = FNVParams {
     initialBasis :: Hash
   , magicPrime :: Hash
@@ -60,25 +62,26 @@ legacyFNV1aParms = FNVParams {
   }
 
 
-defaultHash :: ToHashableChunks a => HashFunction a
-defaultHash = hash32 legacyFNV1aParms
+legacyHash :: ToOctets a => HashFunction a
+legacyHash = hash32 legacyFNV1aParms
 
 
 -- * Class instances
 
 -- | Mechanism for a key to be decomposed into units processable by the
 -- <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV-1a> hashing algorithm.
-class ToHashableChunks a where
-  toHashableChunks :: a -> [Hash]
+class ToOctets a where
+  toOctets :: a -> [Hash]
 
-instance ToHashableChunks Int where
-  toHashableChunks = map (Hash. fromIntegral) . B.unpack . encode
+instance ToOctets Int where
+  toOctets = map (Hash. fromIntegral) . B.unpack . encode
 
-instance ToHashableChunks String where
-  toHashableChunks = map $ Hash . ord
+instance ToOctets String where
+  toOctets = map $ Hash . ord
 
-instance ToHashableChunks Text where
-  toHashableChunks = toHashableChunks . T.unpack
+instance ToOctets Text where
+  toOctets = toOctets . T.unpack
+
 
 -- Utilities
 
@@ -89,7 +92,7 @@ generateArrayIndices (ArraySize size) = map SlotIndex [0..(size - 1)]
 -- * Main functions
 
 hashToSlot
-  :: ToHashableChunks a
+  :: ToOctets a
   => HashFunction a
   -> Nonce
   -> ArraySize
@@ -119,13 +122,13 @@ getNonzeroNonceVal (FNVParams (Hash initial_basis) _) (Nonces.Nonce nonce) =
 -- >         hash = hash xor octet_of_data
 -- >         hash = hash * FNV_prime
 -- > return hash
-hash32 :: ToHashableChunks a =>
+hash32 :: ToOctets a =>
      FNVParams
   -> HashFunction a
 hash32 parms@(FNVParams _ (Hash magic_prime)) nonce =
 
   -- NOTE: This must be 'foldl', not 'foldr'
-  Hash . foldl' combine d . toHashableChunks
+  Hash . foldl' combine d . toOctets
   where
     d = getNonzeroNonceVal parms nonce
 

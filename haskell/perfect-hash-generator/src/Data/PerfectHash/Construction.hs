@@ -27,6 +27,7 @@
 --
 module Data.PerfectHash.Construction (
     createMinimalPerfectHash
+  , createMinimalPerfectHash'
   ) where
 
 import Control.Arrow (first)
@@ -113,11 +114,11 @@ emptyLookupTable = NewLookupTable mempty mempty
 
 
 defaultAlgorithmParams
-  :: Hashing.ToHashableChunks a
+  :: Hashing.ToOctets a
   => AlgorithmParams a
 defaultAlgorithmParams = AlgorithmParams
   (NonceFindingParams (Nonces.mapNonce (+1)) (Nonces.Nonce 1))
-  (Hashing.defaultHash)
+  Hashing.legacyHash
 
 
 -- * Functions
@@ -157,7 +158,7 @@ convertToVector x = Lookup.LookupTable a1 a2
 -- This function is able to fail fast if one of the elements of the bucket
 -- yields a collision when using the new nonce.
 attemptNonceRecursive
-  :: Hashing.ToHashableChunks a
+  :: Hashing.ToOctets a
   => AlgorithmParams a
   -> IntMapAndSize b
   -> Nonce
@@ -203,7 +204,7 @@ attemptNonceRecursive
 -- Increment the candidate nonce by @1@ each time.
 -- Theoretically we're guaranteed to eventually find a solution.
 findNonceForBucketRecursive
-  :: (Hashing.ToHashableChunks a)
+  :: (Hashing.ToOctets a)
   => AlgorithmParams a
   -> Nonce -- ^ nonce to attempt
   -> IntMapAndSize b
@@ -246,7 +247,7 @@ findNonceForBucketRecursive algorithm_params nonce_attempt values_and_size bucke
 -- until one is found that results in no collisions for both this bucket
 -- and all previously placed buckets.
 processMultiEntryBuckets
-  :: (Hashing.ToHashableChunks a)
+  :: (Hashing.ToOctets a)
   => AlgorithmParams a
   -> ArraySize
   -> LookupTable b
@@ -293,7 +294,7 @@ processMultiEntryBuckets
 -- The partial solution produced by this function entails
 -- all of the colliding nonces as fully placed.
 handleCollidingNonces
-  :: (Hashing.ToHashableChunks a)
+  :: (Hashing.ToOctets a)
   => AlgorithmParams a
   -> ArraySize
   -> SortedList (HashBucket (a, b))
@@ -329,7 +330,7 @@ handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
 
 -- | Hash the keys into buckets and sort them by descending size
 preliminaryBucketPlacement
-  :: (Hashing.ToHashableChunks a)
+  :: (Hashing.ToOctets a)
   => AlgorithmParams a
   -> SizedList (a, b)
   -> SortedList (HashBucket (a, b))
@@ -359,7 +360,7 @@ assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_
   NewLookupTable final_nonces final_values
   where
     isUnusedSlot (Hashing.SlotIndex s) =
-      not $ IntMap.member s $ vals intermediate_lookup_table
+      IntMap.notMember s $ vals intermediate_lookup_table
 
     unused_slots = filter isUnusedSlot $ Hashing.generateArrayIndices size
 
@@ -367,8 +368,6 @@ assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_
       zip non_colliding_buckets unused_slots
 
     insertDirectEntry (SingletonBucket computed_hash _, free_slot_index) =
-      -- Observe here that both the output and input
-      -- are nonces:
       IntMap.insert (Hashing.getHash computed_hash) $ DirectEntry free_slot_index
 
     final_nonces = foldr
@@ -387,17 +386,28 @@ assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_
 
 -- | Generates a minimal perfect hash for a set of key-value pairs.
 --
--- The keys must be instances of 'Hashing.ToHashableChunks'.
+-- The keys must be instances of 'Hashing.ToOctets'.
 -- The values may be of arbitrary type.
 --
 -- A 'Map' is required as input to guarantee that there are
 -- no duplicate keys.
 createMinimalPerfectHash
-  :: (Hashing.ToHashableChunks k)
+  :: Hashing.ToOctets k
   => Map k v -- ^ key-value pairs
   -> Lookup.LookupTable v
      -- ^ output for use by 'Lookup.lookup' or a custom code generator
-createMinimalPerfectHash original_words_dict =
+createMinimalPerfectHash =
+  createMinimalPerfectHash' defaultAlgorithmParams
+
+
+-- | Parameterized variant of 'createMinimalPerfectHash'
+createMinimalPerfectHash'
+  :: Hashing.ToOctets k
+  => AlgorithmParams k
+  -> Map k v -- ^ key-value pairs
+  -> Lookup.LookupTable v
+     -- ^ output for use by 'Lookup.lookup' or a custom code generator
+createMinimalPerfectHash' algorithm_params original_words_dict =
   convertToVector final_solution
   where
     tuplified_words_dict = Map.toList original_words_dict
@@ -405,11 +415,11 @@ createMinimalPerfectHash original_words_dict =
     sized_list = SizedList tuplified_words_dict size
 
     sorted_bucket_hash_tuples = preliminaryBucketPlacement
-      defaultAlgorithmParams
+      algorithm_params
       sized_list
 
     partial_solution = handleCollidingNonces
-      defaultAlgorithmParams
+      algorithm_params
       size
       sorted_bucket_hash_tuples
 

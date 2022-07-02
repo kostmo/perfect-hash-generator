@@ -16,7 +16,7 @@ import qualified Data.PerfectHash.Lookup  as Lookup
 
 -- | genericized to facilitate benchmarking
 testLookupsHelper
-  :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a)
+  :: (Show b, Eq b, Show a, Hashing.ToOctets a)
   => (a -> b) -- ^ lookup function
   -> Map a b
   -> Either String ()
@@ -37,7 +37,7 @@ testLookupsHelper lookup_function =
 
 
 testHashMapLookups
-  :: (Show b, Eq b, Show a, Ord a, Hashing.ToHashableChunks a)
+  :: (Show b, Eq b, Show a, Ord a, Hashing.ToOctets a)
   => Map a b
   -> Either String ()
 testHashMapLookups hash_map = testLookupsHelper
@@ -46,11 +46,11 @@ testHashMapLookups hash_map = testLookupsHelper
 
 
 testPerfectLookups
-  :: (Show b, Eq b, Show a, Hashing.ToHashableChunks a)
+  :: (Show b, Eq b, Show a, Hashing.ToOctets a)
   => Lookup.LookupTable b
   -> Map a b
   -> Either String ()
-testPerfectLookups = testLookupsHelper . Lookup.lookup Hashing.defaultHash
+testPerfectLookups = testLookupsHelper . Lookup.lookup Hashing.legacyHash
 
 
 -- | Generate a map of words from a file to their line numbers.

@@ -19,7 +19,7 @@ import qualified Exercise
 
 
 testHashComputation
-  :: (Hashing.ToHashableChunks a, Show a)
+  :: (Hashing.ToOctets a, Show a)
   => a
   -> Hash
   -> IO ()
@@ -27,14 +27,14 @@ testHashComputation key val =
   assertEqual error_message val computed_hash
   where
     error_message = unwords ["Incorrect hash computation of", show key]
-    computed_hash = Hashing.defaultHash (Nonces.Nonce 0) key
+    computed_hash = Hashing.legacyHash (Nonces.Nonce 0) key
 
 
 mkInputs
   :: Ord a
   => [a]
   -> Map a Int
-mkInputs inputs = Map.fromList $ zip inputs [1..]
+mkInputs = Map.fromList . flip zip [1..]
 
 
 wordIndexTuplesString :: Map String Int
@@ -62,7 +62,7 @@ intMapTuples = mkInputs [
 
 
 testHashLookups
-  :: (Show a, Show b, Eq b, Hashing.ToHashableChunks a)
+  :: (Show a, Show b, Eq b, Hashing.ToOctets a)
   => Map a b
   -> IO ()
 testHashLookups word_index_tuples =
@@ -74,8 +74,10 @@ testHashLookups word_index_tuples =
 
 tests = [
     testGroup "Hash computation" [
-      testCase "compute-string-hash" $ testHashComputation ("blarg" :: String) $ Hashing.Hash 3322346319
-    , testCase "compute-int-hash" $ testHashComputation (70000 :: Int) $ Hashing.Hash 4169891409
+      testCase "compute-string-hash" $
+        testHashComputation ("blarg" :: String) $ Hashing.Hash 3322346319
+    , testCase "compute-int-hash" $
+        testHashComputation (70000 :: Int) $ Hashing.Hash 4169891409
     ]
   , testGroup "Hash lookups" [
       testCase "word-lookups-string" $ testHashLookups wordIndexTuplesString
@@ -91,6 +93,5 @@ tests = [
     intMapTuples = Exercise.mkIntMapTuples 100000
     lookup_table = Construction.createMinimalPerfectHash intMapTuples
     
-
 
 main = defaultMain tests
