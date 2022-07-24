@@ -50,7 +50,7 @@ void printChunks(struct BytesAndSize chunks) {
 
 
 
-const int NUMERIC_VALUE = 7000;
+const long NUMERIC_VALUE = 7000;
 char STRING_VALUE[] = "blarg";
 
 

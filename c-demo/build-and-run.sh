@@ -1,9 +1,11 @@
 #!/bin/bash -xe
 
-cd fnv
-make
-cd -
 
-gcc -Wall  -o hello -Ifnv -Lfnv hello.c -lfnv
+OUTPUT_FILENAME=demo
 
-./hello
+
+make -C fnv
+
+gcc -Wall  -o $OUTPUT_FILENAME -Ifnv -Lfnv demo.c -lfnv
+
+./$OUTPUT_FILENAME
