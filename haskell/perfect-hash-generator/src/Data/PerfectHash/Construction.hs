@@ -181,7 +181,7 @@ attemptNonceRecursive
     IntMapAndSize values size = values_and_size
     slot = Hashing.hashToSlot
       (hashFunction algorithm_params)
-      nonce
+      (Just nonce)
       size
       current_key
 
@@ -339,7 +339,7 @@ preliminaryBucketPlacement algo_params sized_list =
   where
     SizedList tuplified_words_dict size = sized_list
 
-    h = Hashing.hashToSlot (hashFunction algo_params) (Nonces.Nonce 0) size
+    h = Hashing.hashToSlot (hashFunction algo_params) Nothing size
     f = Hashing.getIndex . h . fst
 
     slot_key_pairs = deriveTuples f tuplified_words_dict

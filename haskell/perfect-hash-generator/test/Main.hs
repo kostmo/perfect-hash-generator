@@ -13,7 +13,6 @@ import           Test.HUnit                     (assertBool, assertEqual)
 import qualified Data.PerfectHash.Construction  as Construction
 import  Data.PerfectHash.Hashing       (Hash)
 import qualified Data.PerfectHash.Hashing       as Hashing
-import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 import qualified Exercise
 
@@ -27,7 +26,7 @@ testHashComputation key val =
   assertEqual error_message val computed_hash
   where
     error_message = unwords ["Incorrect hash computation of", show key]
-    computed_hash = Hashing.modernHash (Nonces.Nonce 0) key
+    computed_hash = Hashing.modernHash Nothing key
 
 
 mkInputs

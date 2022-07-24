@@ -24,7 +24,14 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 
 -- Types
 
-type HashFunction a = Nonce -> a -> Hash
+-- | The nonce (i.e. the "auxiliary input") to the hash function
+-- is of Maybe type, so that the Initial Basis value is selected
+-- when no nonce (Nothing) is provided.
+-- We would like to keep knowledge of the actual initial basis
+-- value local to the hashing function itself, instead of
+-- requiring callsites to know which initial basis value to
+-- use when the nonce would otherwise be zero.
+type HashFunction a = Maybe Nonce -> a -> Hash
 
 
 newtype SlotIndex = SlotIndex {getIndex :: Int}
@@ -98,20 +105,12 @@ generateArrayIndices (ArraySize size) = map SlotIndex [0..(size - 1)]
 hashToSlot
   :: ToOctets a
   => HashFunction a
-  -> Nonce
+  -> Maybe Nonce
   -> ArraySize
   -> a -- ^ key
   -> SlotIndex
-hashToSlot hash_function nonce (ArraySize size) key =
-  SlotIndex $ getHash (hash_function nonce key) `mod` size
-
-
--- Used in the 'hash32' function
-getNonzeroNonceVal :: FNVParams -> Nonce -> Int
-getNonzeroNonceVal (FNVParams (Hash initial_basis) _) (Nonces.Nonce nonce) =
-  if nonce == 0
-    then initial_basis
-    else nonce
+hashToSlot hash_function maybe_nonce (ArraySize size) key =
+  SlotIndex $ getHash (hash_function maybe_nonce key) `mod` size
 
 
 -- | The interface is comparable to the
@@ -129,11 +128,13 @@ getNonzeroNonceVal (FNVParams (Hash initial_basis) _) (Nonces.Nonce nonce) =
 hash32 :: ToOctets a =>
      FNVParams
   -> HashFunction a
-hash32 parms@(FNVParams _ (Hash magic_prime)) nonce =
+hash32 (FNVParams (Hash initial_basis) (Hash magic_prime)) maybe_nonce =
 
-  -- NOTE: This must be 'foldl', not 'foldr'
+  -- NOTE: This has to be 'foldl', not 'foldr'
   Hash . foldl' combine d . toOctets
   where
-    d = getNonzeroNonceVal parms nonce
+    d = case maybe_nonce of
+      Just (Nonces.Nonce nonce) -> nonce
+      Nothing -> initial_basis
 
     combine acc = (.&. mask32bits) . (* magic_prime) . xor acc . getHash

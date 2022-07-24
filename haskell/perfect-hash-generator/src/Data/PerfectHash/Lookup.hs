@@ -13,7 +13,6 @@ import           Data.Vector      (Vector, (!))
 import qualified Data.Vector      as Vector
 import           Prelude                  hiding (lookup)
 
-import Data.PerfectHash.Types.Nonces (Nonce (Nonce))
 import qualified Data.PerfectHash.Hashing as Hashing
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 
@@ -105,7 +104,7 @@ lookup hash_function lookup_table key =
 
     Hashing.SlotIndex nonce_index = Hashing.hashToSlot
       hash_function
-      (Nonce 0)
+      Nothing
       table_size key
 
     nonce = nonces lookup_table ! nonce_index
@@ -113,4 +112,4 @@ lookup hash_function lookup_table key =
     -- Negative nonce value indicates that we don't need extra lookup layer
     Hashing.SlotIndex v_key = if Nonces.isDirectSlot nonce
       then decodeDirectEntry nonce
-      else Hashing.hashToSlot hash_function (Nonces.Nonce nonce) table_size key
+      else Hashing.hashToSlot hash_function (Just $ Nonces.Nonce nonce) table_size key
