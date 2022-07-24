@@ -51,6 +51,10 @@ primeFNV1a32bit :: Hash
 primeFNV1a32bit = Hash 0x01000193
 
 
+initialBasisFNV1a32bit :: Hash
+initialBasisFNV1a32bit = Hash 0x811c9dc5
+
+
 mask32bits :: Int
 mask32bits = 0xffffffff
 
@@ -62,8 +66,19 @@ legacyFNV1aParms = FNVParams {
   }
 
 
+modernFNV1aParms :: FNVParams
+modernFNV1aParms = FNVParams {
+    initialBasis = initialBasisFNV1a32bit
+  , magicPrime = primeFNV1a32bit
+  }
+
+
 legacyHash :: ToOctets a => HashFunction a
 legacyHash = hash32 legacyFNV1aParms
+
+
+modernHash :: ToOctets a => HashFunction a
+modernHash = hash32 modernFNV1aParms
 
 
 -- * Class instances
@@ -74,7 +89,7 @@ class ToOctets a where
   toOctets :: a -> [Hash]
 
 instance ToOctets Int where
-  toOctets = map (Hash. fromIntegral) . B.unpack . encode
+  toOctets = map Hash . dropWhile (== 0) . map fromIntegral . B.unpack . encode
 
 instance ToOctets String where
   toOctets = map $ Hash . ord

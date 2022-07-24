@@ -27,7 +27,7 @@ testHashComputation key val =
   assertEqual error_message val computed_hash
   where
     error_message = unwords ["Incorrect hash computation of", show key]
-    computed_hash = Hashing.legacyHash (Nonces.Nonce 0) key
+    computed_hash = Hashing.modernHash (Nonces.Nonce 0) key
 
 
 mkInputs
@@ -73,11 +73,18 @@ testHashLookups word_index_tuples =
 
 
 tests = [
-    testGroup "Hash computation" [
+    testGroup "Octets conversion" [  
+      testCase "small int" $
+        assertEqual
+          "Incorrect Octets conversion"
+          [Hashing.Hash 0x1b, Hashing.Hash 0x58]
+          (Hashing.toOctets (7000 :: Int))
+    ]      
+  , testGroup "Hash computation" [
       testCase "compute-string-hash" $
-        testHashComputation ("blarg" :: String) $ Hashing.Hash 3322346319
+        testHashComputation ("blarg" :: String) $ Hashing.Hash 0x4a6457b9
     , testCase "compute-int-hash" $
-        testHashComputation (70000 :: Int) $ Hashing.Hash 4169891409
+        testHashComputation (7000 :: Int) $ Hashing.Hash 0x6fb40186
     ]
   , testGroup "Hash lookups" [
       testCase "word-lookups-string" $ testHashLookups wordIndexTuplesString
