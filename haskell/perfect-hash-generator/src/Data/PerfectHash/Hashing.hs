@@ -59,22 +59,11 @@ mask32bits :: Int
 mask32bits = 0xffffffff
 
 
-legacyFNV1aParms :: FNVParams
-legacyFNV1aParms = FNVParams {
-    initialBasis = primeFNV1a32bit
-  , magicPrime = primeFNV1a32bit
-  }
-
-
 modernFNV1aParms :: FNVParams
 modernFNV1aParms = FNVParams {
     initialBasis = initialBasisFNV1a32bit
   , magicPrime = primeFNV1a32bit
   }
-
-
-legacyHash :: ToOctets a => HashFunction a
-legacyHash = hash32 legacyFNV1aParms
 
 
 modernHash :: ToOctets a => HashFunction a

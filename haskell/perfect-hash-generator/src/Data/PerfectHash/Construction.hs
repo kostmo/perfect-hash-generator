@@ -118,7 +118,7 @@ defaultAlgorithmParams
   => AlgorithmParams a
 defaultAlgorithmParams = AlgorithmParams
   (NonceFindingParams (Nonces.mapNonce (+1)) (Nonces.Nonce 1))
-  Hashing.legacyHash
+  Hashing.modernHash
 
 
 -- * Functions
