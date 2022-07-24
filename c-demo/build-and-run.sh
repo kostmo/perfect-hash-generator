@@ -1,5 +1,9 @@
 #!/bin/bash -xe
 
-gcc -Wall hello.c -o hello
+cd fnv
+make
+cd -
+
+gcc -Wall  -o hello -Ifnv -Lfnv hello.c -lfnv
 
 ./hello

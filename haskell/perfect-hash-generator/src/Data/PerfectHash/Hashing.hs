@@ -47,8 +47,8 @@ data FNVParams = FNVParams {
 
 -- | This choice of prime number @0x01000193@ was taken from the Python implementation
 -- on <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's page>.
-primeFNV1a :: Hash
-primeFNV1a = Hash 0x01000193
+primeFNV1a32bit :: Hash
+primeFNV1a32bit = Hash 0x01000193
 
 
 mask32bits :: Int
@@ -57,8 +57,8 @@ mask32bits = 0xffffffff
 
 legacyFNV1aParms :: FNVParams
 legacyFNV1aParms = FNVParams {
-    initialBasis = primeFNV1a
-  , magicPrime = primeFNV1a
+    initialBasis = primeFNV1a32bit
+  , magicPrime = primeFNV1a32bit
   }
 
 
@@ -102,7 +102,7 @@ hashToSlot hash_function nonce (ArraySize size) key =
   SlotIndex $ getHash (hash_function nonce key) `mod` size
 
 
--- Used in the 'hash' function
+-- Used in the 'hash32' function
 getNonzeroNonceVal :: FNVParams -> Nonce -> Int
 getNonzeroNonceVal (FNVParams (Hash initial_basis) _) (Nonces.Nonce nonce) =
   if nonce == 0
