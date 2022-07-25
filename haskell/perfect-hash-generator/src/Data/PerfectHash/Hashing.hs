@@ -25,8 +25,9 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 -- Types
 
 -- | The nonce (i.e. the "secondary input") to the hash function
--- is of Maybe type, so that the Initial Basis value is selected
--- when no nonce (Nothing) is provided.
+-- is of 'Maybe' type, so that the /Initial Basis/ value is selected
+-- when no nonce ('Nothing') is provided.
+--
 -- We would like to keep knowledge of the actual initial basis
 -- value local to the hashing function itself, instead of
 -- requiring callsites to know which initial basis value to
@@ -60,6 +61,7 @@ primeFNV1a32bit :: Hash
 primeFNV1a32bit = Hash 0x01000193
 
 
+-- | See the <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV website> for details
 initialBasisFNV1a32bit :: Hash
 initialBasisFNV1a32bit = Hash 0x811c9dc5
 

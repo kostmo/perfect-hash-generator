@@ -38,12 +38,11 @@ data LookupTable a = LookupTable {
   , values :: Vector a
     -- ^ An array of values of arbitrary type.
     --
-    -- The objective of the perfect hash is to efficiently retrieve an index into
-    -- this array, given the key associated with the value at that index.
+    -- The objective of the perfect hash is to efficiently retrieve an index
+    -- into this array, given the key associated with the value at that index.
     --
-    -- Note that it is can be useful to store the original key here as well, in order to
-    -- detect lookups by a key that was not in the original key set.
-    -- However, this should be done externally to this library.
+    -- Note that it can be useful to store the original key here as well, in
+    -- order to detect lookups by a key that was not in the original key set.
   }
 
 
@@ -77,6 +76,10 @@ decodeDirectEntry val =
 
 -- | For embedded applications, this function would usually be re-implemented
 -- in C code.
+--
+-- Note that this function will always return a value, even when supplied an
+-- invalid key. If the validity of keys cannot be ensured, then use
+-- 'lookupVerifyKey'.
 --
 -- == Procedure description
 -- The lookup procedure is three steps:
@@ -121,8 +124,12 @@ lookup hash_function lookup_table key =
       else Hashing.hashToSlot hash_function (Just $ Nonces.Nonce nonce) table_size key
 
 
--- | To use this function, create the lookup table with the
--- createMinimalPerfectHashWithKeys function.
+-- | This just wraps the 'lookup' function with a check for existence of the
+-- key.
+--
+-- To use this function, create the lookup table by using the
+-- 'Data.PerfectHash.Construction.createMinimalPerfectHashWithKeys'
+-- function.
 lookupVerifyKey
   :: (Hashing.ToOctets a, Eq a)
   => Hashing.HashFunction a

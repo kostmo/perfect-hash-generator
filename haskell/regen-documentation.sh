@@ -1,7 +1,7 @@
 #!/bin/bash -xe
 
 PACKAGE_NAME=perfect-hash-generator
-PACKAGE_VERSION=1.0.0
+PACKAGE_VERSION=$(yq .version perfect-hash-generator/package.yaml)
 VERSIONED_PACKAGE_NAME=$PACKAGE_NAME-$PACKAGE_VERSION
 
 stack run mk-diagram -- --output $PACKAGE_NAME/docs/images/algorithm-diagram.svg
