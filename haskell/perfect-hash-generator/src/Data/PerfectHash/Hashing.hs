@@ -24,7 +24,7 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 
 -- Types
 
--- | The nonce (i.e. the "auxiliary input") to the hash function
+-- | The nonce (i.e. the "secondary input") to the hash function
 -- is of Maybe type, so that the Initial Basis value is selected
 -- when no nonce (Nothing) is provided.
 -- We would like to keep knowledge of the actual initial basis
@@ -42,11 +42,13 @@ newtype Hash = Hash {getHash :: Int}
 newtype ArraySize = ArraySize Int
   deriving Show
 
+
 -- | Parameters for FVN hashing algorithm
 -- See http://isthe.com/chongo/tech/comp/fnv/
 data FNVParams = FNVParams {
     initialBasis :: Hash
   , magicPrime :: Hash
+  , bitmask :: Int
   }
 
 
@@ -70,6 +72,7 @@ modernFNV1aParms :: FNVParams
 modernFNV1aParms = FNVParams {
     initialBasis = initialBasisFNV1a32bit
   , magicPrime = primeFNV1a32bit
+  , bitmask = mask32bits
   }
 
 
@@ -84,6 +87,7 @@ modernHash = hash32 modernFNV1aParms
 class ToOctets a where
   toOctets :: a -> [Hash]
 
+-- | Drops all leading zero-bytes
 instance ToOctets Int where
   toOctets = map Hash . dropWhile (== 0) . map fromIntegral . B.unpack . encode
 
@@ -128,7 +132,7 @@ hashToSlot hash_function maybe_nonce (ArraySize size) key =
 hash32 :: ToOctets a =>
      FNVParams
   -> HashFunction a
-hash32 (FNVParams (Hash initial_basis) (Hash magic_prime)) maybe_nonce =
+hash32 (FNVParams (Hash initial_basis) (Hash magic_prime) bitmask) maybe_nonce =
 
   -- NOTE: This has to be 'foldl', not 'foldr'
   Hash . foldl' combine d . toOctets
@@ -137,4 +141,4 @@ hash32 (FNVParams (Hash initial_basis) (Hash magic_prime)) maybe_nonce =
       Just (Nonces.Nonce nonce) -> nonce
       Nothing -> initial_basis
 
-    combine acc = (.&. mask32bits) . (* magic_prime) . xor acc . getHash
+    combine acc = (.&. bitmask) . (* magic_prime) . xor acc . getHash

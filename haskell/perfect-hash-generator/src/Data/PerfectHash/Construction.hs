@@ -28,6 +28,7 @@
 module Data.PerfectHash.Construction (
     createMinimalPerfectHash
   , createMinimalPerfectHash'
+  , createMinimalPerfectHashWithKeys
   ) where
 
 import Control.Arrow (first)
@@ -424,6 +425,17 @@ createMinimalPerfectHash' algorithm_params original_words_dict =
       sorted_bucket_hash_tuples
 
     final_solution = assignDirectSlots size partial_solution
+
+
+-- | Stores the keys alongside the values so that lookups with
+-- invalid keys can be detected.
+createMinimalPerfectHashWithKeys
+  :: Hashing.ToOctets k
+  => Map k v -- ^ key-value pairs
+  -> Lookup.LookupTable (k, v)
+     -- ^ output for use by 'Lookup.lookup' or a custom code generator
+createMinimalPerfectHashWithKeys =
+  createMinimalPerfectHash . Map.mapWithKey (,)
 
 
 -- * Utility functions

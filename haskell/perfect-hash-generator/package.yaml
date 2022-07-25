@@ -127,12 +127,14 @@ executables:
     source-dirs:
     - demo/gen-c-code-from-file
     - test-utils
+    - demo/src
     dependencies:
     - perfect-hash-generator
     - random
     - optparse-applicative
     - vector
     - containers
+    - MissingH
 tests:
   regression-tests:
     main: Main.hs

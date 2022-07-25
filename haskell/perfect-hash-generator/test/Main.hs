@@ -6,13 +6,14 @@ import           Data.Either                    (isRight)
 import qualified Data.Map as Map
 import           Data.Map                 (Map)
 import           Data.Text                      (Text)
-import           Test.Framework                 (defaultMain, testGroup)
+import           Test.Framework                 (defaultMain, testGroup, Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (assertBool, assertEqual)
 
 import qualified Data.PerfectHash.Construction  as Construction
 import  Data.PerfectHash.Hashing       (Hash)
 import qualified Data.PerfectHash.Hashing       as Hashing
+import qualified Data.PerfectHash.Lookup  as Lookup
 
 import qualified Exercise
 
@@ -52,14 +53,6 @@ wordIndexTuplesText = mkInputs [
   ]
 
 
-intMapTuples :: Map Int Int
-intMapTuples = mkInputs [
-    1000
-  , 5555
-  , 9876
-  ]
-
-
 testHashLookups
   :: (Show a, Show b, Eq b, Hashing.ToOctets a)
   => Map a b
@@ -88,16 +81,47 @@ tests = [
   , testGroup "Hash lookups" [
       testCase "word-lookups-string" $ testHashLookups wordIndexTuplesString
     , testCase "word-lookups-text" $ testHashLookups wordIndexTuplesText
-    , testCase "int-lookups" $ testHashLookups intMapTuples
+    , testCase "int-lookups" $ testHashLookups largeIntMapTuples
     ]
   , testGroup "Large scale round-tripping with random inputs" [
       testCase "integers" $ assertBool "Lookups failed to match input" $
-        isRight $ Exercise.testPerfectLookups lookup_table intMapTuples
+        isRight $ Exercise.testPerfectLookups large_lookup_table largeIntMapTuples
     ]
+  , testGroup "Missing key detection" keyVerificationTestCases
   ]
   where
-    intMapTuples = Exercise.mkIntMapTuples 100000
-    lookup_table = Construction.createMinimalPerfectHash intMapTuples
+    largeIntMapTuples = Exercise.mkIntMapTuples 100000
+    large_lookup_table = Construction.createMinimalPerfectHash largeIntMapTuples
+
+
+keyVerificationTestCases :: [Test]
+keyVerificationTestCases = [
+    testCase "Lookup attempt with invalid key" $
+      assertEqual
+        "Maps to an arbitrary, incorrect value"
+        (lookupPlain ("d" :: String))
+        2
+  , testCase "Lookup attempt with a valid key" $
+      assertEqual
+        "Should report key found"
+        (lookupVerified ("c" :: String))
+        (Just 9)
+  , testCase "Lookup attempt with an invalid key" $
+      assertEqual
+        "Should report key not found"
+        (lookupVerified ("d" :: String))
+        Nothing
+  ]
+  where
+    smallMap = Map.fromList [
+        ("a" :: String, 4 :: Int)
+      , ("b", 2)
+      , ("c", 9)
+      ]
+    smallLookupTable = Construction.createMinimalPerfectHash smallMap
+    lookupPlain = Lookup.lookup Hashing.modernHash smallLookupTable
+    smallLookupTableStoredKeys = Construction.createMinimalPerfectHashWithKeys smallMap
+    lookupVerified = Lookup.lookupVerifyKey Hashing.modernHash smallLookupTableStoredKeys
     
 
 main = defaultMain tests

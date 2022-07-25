@@ -1,19 +1,18 @@
 module Main where
 
-import           Control.Monad                 (when)
-import qualified Data.Map as Map
+import Data.Either (fromRight)
+
 import Options.Applicative
-import qualified Data.PerfectHash.Construction as Construction
-import qualified Data.PerfectHash.Lookup       as Lookup
-import qualified Exercise
 
+import qualified InputParsing
+import qualified Data.PerfectHash.Construction  as Construction
 
-defaultDictionaryPath :: FilePath
-defaultDictionaryPath = "/usr/share/dict/words"
+import qualified CodeWriting
 
 
 data DemoOptions = DemoOptions {
-    dictionaryPath :: FilePath
+    inputPath :: FilePath
+  , outputPath :: FilePath
   , debugEnabled :: Bool
   }
 
@@ -21,9 +20,12 @@ data DemoOptions = DemoOptions {
 optionsParser :: Parser DemoOptions
 optionsParser = DemoOptions
   <$> strOption
-      ( long "dictionary"
-      <> help "Dictionary path"
-      <> value defaultDictionaryPath)
+      ( long "input-filepath"
+      <> help "CSV path"
+      <> value "lookup_table.c")
+  <*> strOption
+      ( long "output-filepath"
+      <> help "Generated C code file path")
   <*> switch
       ( long "debug"
       <> help "enable debug mode")
@@ -38,27 +40,17 @@ main = run =<< execParser opts
      <> header "string test" )
 
 
-run (DemoOptions dictionaryPath enableDebug) = do
+run (DemoOptions inputPath outputPath _enableDebug) = do
+  either_result <- InputParsing.parseCsv inputPath
+  let myMap = do 
+        result <- either_result
+        InputParsing.validateMap result
+  print myMap
 
-  word_index_tuples <- Exercise.wordsFromFile dictionaryPath
+  let lookup_table = Construction.createMinimalPerfectHash $ fromRight (error "Bad map") myMap
+      rendered_code = CodeWriting.renderCode lookup_table 
 
-  putStrLn $ unwords [
-      "Words size:"
-    , show $ length word_index_tuples
-    ]
+  writeFile outputPath rendered_code
 
-  let lookup_table = Construction.createMinimalPerfectHash $
-        Map.fromList word_index_tuples
+  putStrLn "Done."
 
-  putStrLn $ unwords [
-      "Finished computing lookup table with"
-    , show $ Lookup.size lookup_table
-    , "entries."
-    ]
-
-  when enableDebug $ do
-    putStrLn $ unwords ["Vector G:", show $ Lookup.nonces lookup_table]
-    putStrLn $ unwords ["Vector V:", show $ Lookup.values lookup_table]
-
-  Exercise.eitherExit $ Exercise.testPerfectLookups lookup_table $
-    Map.fromList word_index_tuples

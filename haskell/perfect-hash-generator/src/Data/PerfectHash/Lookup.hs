@@ -7,6 +7,7 @@ module Data.PerfectHash.Lookup (
   , size
   , encodeDirectEntry
   , lookup
+  , lookupVerifyKey
   ) where
 
 import           Data.Vector      (Vector, (!))
@@ -39,6 +40,10 @@ data LookupTable a = LookupTable {
     --
     -- The objective of the perfect hash is to efficiently retrieve an index into
     -- this array, given the key associated with the value at that index.
+    --
+    -- Note that it is can be useful to store the original key here as well, in order to
+    -- detect lookups by a key that was not in the original key set.
+    -- However, this should be done externally to this library.
   }
 
 
@@ -100,6 +105,7 @@ lookup hash_function lookup_table key =
   values lookup_table ! v_key
 
   where
+
     table_size = size lookup_table
 
     Hashing.SlotIndex nonce_index = Hashing.hashToSlot
@@ -113,3 +119,19 @@ lookup hash_function lookup_table key =
     Hashing.SlotIndex v_key = if Nonces.isDirectSlot nonce
       then decodeDirectEntry nonce
       else Hashing.hashToSlot hash_function (Just $ Nonces.Nonce nonce) table_size key
+
+
+-- | To use this function, create the lookup table with the
+-- createMinimalPerfectHashWithKeys function.
+lookupVerifyKey
+  :: (Hashing.ToOctets a, Eq a)
+  => Hashing.HashFunction a
+  -> LookupTable (a, b)
+  -> a -- ^ key
+  -> Maybe b -- ^ value
+lookupVerifyKey hash_function lookup_table key =
+  if retrievedKey == key
+    then Just result
+    else Nothing
+  where
+  (retrievedKey, result) = lookup hash_function lookup_table key
