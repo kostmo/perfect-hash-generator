@@ -26,8 +26,9 @@ data LookupTable a = LookupTable {
     nonces :: Vector Int
     -- ^ This is the intermediate lookup table.
     --
-    -- In the lookup process, the key's hash is computed first with a nonce of
-    -- zero to obtain an index into this array.
+    -- In the lookup process, the key's hash is computed first with no nonce 
+    -- (i.e. the default Initial Basis for the hash function) to obtain an
+    -- index into this array.
     --
     -- If the value at this index is negative, it is (after negating and
     -- subtracting one) a direct index into the 'values' array.
@@ -84,7 +85,8 @@ decodeDirectEntry val =
 -- == Procedure description
 -- The lookup procedure is three steps:
 --
---     1. Compute the 'Hashing.hash' (with a nonce of zero) of the "key", modulo
+--     1. Compute the 'Hashing.hash32' of the "key", without a nonce
+--        (i.e. using the default Initial Basis value), modulo
 --        the length of the 'values' array.
 --     2. Use the resulting value as an index into the 'nonces' array.  The value
 --        found there represents either a direct index into the 'values' array
@@ -124,7 +126,7 @@ lookup hash_function lookup_table key =
       else Hashing.hashToSlot hash_function (Just $ Nonces.Nonce nonce) table_size key
 
 
--- | This just wraps the 'lookup' function with a check for existence of the
+-- | Wraps the 'lookup' function with a check for existence of the
 -- key.
 --
 -- To use this function, create the lookup table by using the

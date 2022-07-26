@@ -96,7 +96,7 @@ tests = [
 
 keyVerificationTestCases :: [Test]
 keyVerificationTestCases = [
-    testCase "Lookup attempt with invalid key" $
+    testCase "Lookup attempt with invalid key (unchecked)" $
       assertEqual
         "Maps to an arbitrary, incorrect value"
         (lookupPlain ("d" :: String))

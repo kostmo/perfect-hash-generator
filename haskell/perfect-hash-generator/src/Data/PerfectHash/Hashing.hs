@@ -126,7 +126,7 @@ hashToSlot hash_function maybe_nonce (ArraySize size) key =
 -- Uses the \"FNV-1a\" algorithm from the
 -- <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV website>:
 --
--- > hash = offset_basis
+-- > hash = initial_basis
 -- > for each octet_of_data to be hashed
 -- >         hash = hash xor octet_of_data
 -- >         hash = hash * FNV_prime

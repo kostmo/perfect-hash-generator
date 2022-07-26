@@ -427,7 +427,7 @@ createMinimalPerfectHash' algorithm_params original_words_dict =
     final_solution = assignDirectSlots size partial_solution
 
 
--- | Stores the keys alongside the values so that lookups with
+-- | Stores the keys alongside the values so that lookups using
 -- invalid keys can be detected.
 createMinimalPerfectHashWithKeys
   :: Hashing.ToOctets k
