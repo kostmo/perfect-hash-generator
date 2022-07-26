@@ -3,18 +3,15 @@ module InputParsing where
 import           Control.Monad     (unless)
 import           Data.String.Utils (strip)
 import Text.Read                   (readEither)
+import Data.List.Split (splitOn)
 import qualified Data.Map as Map
 import Data.Map                    (Map)
 
 
-elementDelimiter :: Char
-elementDelimiter = ','
-
-
 splitTuple delimiter string =
-  (key_string, drop 1 val_string)
+  (key_string, val_string)
   where
-  (key_string, val_string) = span (/= delimiter) string
+  [key_string, val_string] = splitOn delimiter string
 
 
 -- | Ensures all keys are unique before converting to Map
@@ -28,10 +25,10 @@ parseCsv filePath = do
       Right x -> Right x
     splitter line = do
       keyVal <- wrappedReadEither key_string
-      valVal <- wrappedReadEither $ drop 1 val_string
+      valVal <- wrappedReadEither val_string
       return (keyVal, valVal)
       where
-        (key_string, val_string) = splitTuple elementDelimiter line
+        (key_string, val_string) = splitTuple "," line
 
 
 wrappedReadEither :: (Read a) => String -> Either String a

@@ -35,6 +35,10 @@ int main() {
     Fnv32_t hash_val2 = fnv_32a_buf(myOutput.bytes, myOutput.size, FNV1_32A_INIT);
     print_fnv32(hash_val2, bmask, 0, "This is a numeric test");
 
+    LookupTable my_table = {	.size = my_size,	.elems = my_elems}; 
+    int foo = lookup(my_table, convertToBytes(39));
+    printf("Foo: %ld\n", foo);
+
     return 0;
 }
 

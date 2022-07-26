@@ -5,7 +5,7 @@
 #include "utils.h"
 
 union IntermediateVal {
-   int signed_val;
+   int32_t signed_val;
    Fnv32_t nonce;
 };
 
@@ -18,8 +18,13 @@ typedef struct NonceValPair {
 
 typedef struct LookupTable {
     size_t size;
-    struct NonceValPair elems[];
+    NonceValPair elems[7];
 } LookupTable;
 
 
-int lookup(LookupTable, struct LongNumberBuffer);
+unsigned int lookup(LookupTable, LongNumberBuffer);
+
+
+extern const size_t my_size;
+extern const NonceValPair my_elems[];
+

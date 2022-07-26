@@ -135,6 +135,7 @@ executables:
     - vector
     - containers
     - MissingH
+    - split
 tests:
   regression-tests:
     main: Main.hs

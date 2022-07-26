@@ -6,3 +6,4 @@ dist
 .hpc
 *.cabal
 .dir-locals.el
+*.hie
