@@ -1,15 +1,18 @@
 #pragma once
 
 #include <stdio.h>
+#include "fnv.h"
 
-struct BytesAndSize {
+
+typedef struct LongNumberBuffer {
     char bytes[8];
     size_t size;
-};
+} LongNumberBuffer;
 
+Fnv32_t fnv_32a_numeric_buf(LongNumberBuffer, Fnv32_t);
 
-int countRequiredBytes(long num);
+int countRequiredBytes(long);
 
-struct BytesAndSize convertToBytes(long num);
+LongNumberBuffer convertToBytes(long);
 
-void printChunks(struct BytesAndSize chunks);
+void printChunks(LongNumberBuffer);

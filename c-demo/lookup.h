@@ -2,18 +2,24 @@
 
 #include <stdio.h>
 #include "fnv.h"
+#include "utils.h"
 
 union IntermediateVal {
-   int i;
-   Fnv32_t hash;
+   int signed_val;
+   Fnv32_t nonce;
 };
 
 
-struct LookupTable {
+typedef struct NonceValPair {
+    union IntermediateVal nonce;
+    int value;
+} NonceValPair;
+
+
+typedef struct LookupTable {
     size_t size;
-    int *values;
-    union IntermediateVal *redirects;
-};
+    struct NonceValPair elems[];
+} LookupTable;
 
 
-int lookup(struct LookupTable table, int key);
+int lookup(LookupTable, struct LongNumberBuffer);

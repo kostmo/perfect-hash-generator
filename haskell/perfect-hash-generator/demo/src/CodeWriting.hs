@@ -1,7 +1,7 @@
 module CodeWriting where
 
 import Data.List                    (intercalate)
-import qualified Data.Vector      as Vector
+--import qualified Data.Vector      as Vector
 import qualified Data.PerfectHash.Lookup  as Lookup
 
 
@@ -14,31 +14,36 @@ curly x = "{" <> x <> "}"
 
 
 renderCode :: Lookup.LookupTable Integer -> String
-renderCode table =
-  unlines [nonces_line, values_line]
+renderCode table = unlines [
+      "#include \"lookup.h\""
+    , ""
+    , "LookupTable TABLE = {"
+    , "\t" <> size_line
+    , "\t" <> pairs_line
+    , "};"
+    ]
   
   where
-    values_line = unwords [
-        "const"
-      , "int"
-      , "VALUES[]"
+    size_line = unwords [
+        ".size"
       , "="
-      , values_array_literal
-      ] <> ";"
+      , show $ length $ Lookup.values table
+      ] <> ","
 
+--    pairs = zip (Vector.toList $ Lookup.nonces table) (Vector.toList $ Lookup.values table)
+    pairs :: [(Int, Integer)]
+    pairs = []
 
-    values_array_literal = 
-      curly $ intercalate ", " $ map show $
-        Vector.toList $ Lookup.values table
+    f (nonce, val) = unwords [
+        -- "struct NonceValPair
+      -- , {"
+        "{"
+      , ".nonce = " <> show nonce
+      , ".value = " <> show val
+      , "}"
+      ]
 
-    nonces_line = unwords [
-        "const"
-      , "int"
-      , "NONCES[]"
-      , "="
-      , nonces_array_literal
-      ] <> ";"
-
-    nonces_array_literal = 
-      curly $ intercalate ", " $ map show $
-        Vector.toList $ Lookup.nonces table
+    pairs_line = unwords [
+        ".elems ="
+      , curly $ intercalate ", " $ map f pairs
+      ]

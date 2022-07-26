@@ -28,7 +28,7 @@ int main() {
     print_fnv32(hash_val1, bmask, 0, "This is a string test");
 
 
-    struct BytesAndSize myOutput = convertToBytes(NUMERIC_VALUE);
+    LongNumberBuffer myOutput = convertToBytes(NUMERIC_VALUE);
     printf("Chunks for %ld: %ld\n", NUMERIC_VALUE, myOutput.size);
     printChunks(myOutput);
 

@@ -1,6 +1,10 @@
 #include "utils.h"
 
 
+Fnv32_t fnv_32a_numeric_buf(LongNumberBuffer buf, Fnv32_t initial_basis) {
+    return fnv_32a_buf(buf.bytes, buf.size, initial_basis);
+}
+
 int countRequiredBytes(long num) {
 
     int count = 0;
@@ -13,11 +17,11 @@ int countRequiredBytes(long num) {
 
 }
 
-struct BytesAndSize convertToBytes(long num) {
+LongNumberBuffer convertToBytes(long num) {
 
     int count = countRequiredBytes(num);
 
-    struct BytesAndSize myOutput = { .bytes = {0}, .size = count };
+    LongNumberBuffer myOutput = { .bytes = {0}, .size = count };
 
     for (int i = count - 1; i >= 0; i--) {
 
@@ -30,7 +34,7 @@ struct BytesAndSize convertToBytes(long num) {
     return myOutput;
 }
 
-void printChunks(struct BytesAndSize chunks) {
+void printChunks(LongNumberBuffer chunks) {
 
     for (int i=0; i<chunks.size; i++) {
 
