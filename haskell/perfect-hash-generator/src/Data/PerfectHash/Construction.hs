@@ -48,7 +48,7 @@ import qualified Data.Vector      as Vector
 import qualified Data.Maybe               as Maybe
 
 import qualified Data.PerfectHash.Hashing as Hashing
-import Data.PerfectHash.Hashing (Hash, ArraySize)
+import Data.PerfectHash.Hashing (Hash32, ArraySize)
 import qualified Data.PerfectHash.Lookup as Lookup
 import Data.PerfectHash.Types.Nonces (Nonce)
 import qualified Data.PerfectHash.Types.Nonces as Nonces
@@ -56,7 +56,7 @@ import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 data AlgorithmParams a = AlgorithmParams {
     nonceParams :: NonceFindingParams
-  , hashFunction :: Hashing.HashFunction a
+  , hashFunction :: Hashing.HashFunction a Hash32
   }
 
 
@@ -80,12 +80,12 @@ data LookupTable a = NewLookupTable {
   }
 
 
-data SingletonBucket a = SingletonBucket Hash a
+data SingletonBucket a = SingletonBucket Hash32 a
   deriving Eq
 
 
 data HashBucket a = HashBucket {
-    _hashVal :: Hash
+    _hashVal :: Hash32
   , bucketMembers :: [a]
   }
 

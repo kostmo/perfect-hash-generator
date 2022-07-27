@@ -101,7 +101,7 @@ decodeDirectEntry val =
 --     3. Use the result of (2) as the index into the 'values' array.
 lookup
   :: (Hashing.ToOctets a)
-  => Hashing.HashFunction a
+  => Hashing.HashFunction a Hashing.Hash32
   -> LookupTable b
   -> a -- ^ key
   -> b -- ^ value
@@ -134,7 +134,7 @@ lookup hash_function lookup_table key =
 -- function.
 lookupVerifyKey
   :: (Hashing.ToOctets a, Eq a)
-  => Hashing.HashFunction a
+  => Hashing.HashFunction a Hashing.Hash32
   -> LookupTable (a, b)
   -> a -- ^ key
   -> Maybe b -- ^ value

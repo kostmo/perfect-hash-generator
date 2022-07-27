@@ -32,24 +32,35 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 -- value local to the hashing function itself, instead of
 -- requiring callsites to know which initial basis value to
 -- use when the nonce would otherwise be zero.
-type HashFunction a = Maybe Nonce -> a -> Hash
+type HashFunction a b = Maybe Nonce -> a -> b
 
 
 newtype SlotIndex = SlotIndex {getIndex :: Int}
 
-newtype Hash = Hash {getHash :: Int}
+
+type Hash32 = Hash Int
+
+
+newtype Hash a = Hash {getHash :: a}
   deriving (Eq, Show)
 
 newtype ArraySize = ArraySize Int
   deriving Show
 
 
--- | Parameters for FVN hashing algorithm
+-- | Parameters for FNV hashing algorithm
 -- See http://isthe.com/chongo/tech/comp/fnv/
-data FNVParams = FNVParams {
-    initialBasis :: Hash
-  , magicPrime :: Hash
-  , bitmask :: Int
+--
+-- Parameterized to bit width
+data FNVParams a = FNVParams {
+    initialBasis :: Hash a
+  , innerParams :: FNVInnerParams a
+  }
+
+-- | Inner FNV parameters
+data FNVInnerParams a = FNVInnerParams {
+    magicPrime :: Hash a
+  , bitmask :: a
   }
 
 
@@ -57,12 +68,12 @@ data FNVParams = FNVParams {
 
 -- | This choice of prime number @0x01000193@ was taken from the Python implementation
 -- on <http://stevehanov.ca/blog/index.php?id=119 Steve Hanov's page>.
-primeFNV1a32bit :: Hash
+primeFNV1a32bit :: Hash32
 primeFNV1a32bit = Hash 0x01000193
 
 
 -- | See the <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV website> for details
-initialBasisFNV1a32bit :: Hash
+initialBasisFNV1a32bit :: Hash32
 initialBasisFNV1a32bit = Hash 0x811c9dc5
 
 
@@ -70,15 +81,17 @@ mask32bits :: Int
 mask32bits = 0xffffffff
 
 
-modernFNV1aParms :: FNVParams
+modernFNV1aParms :: FNVParams Int
 modernFNV1aParms = FNVParams {
     initialBasis = initialBasisFNV1a32bit
-  , magicPrime = primeFNV1a32bit
-  , bitmask = mask32bits
+  , innerParams = FNVInnerParams {
+      magicPrime = primeFNV1a32bit
+    , bitmask = mask32bits
+    }
   }
 
 
-modernHash :: ToOctets a => HashFunction a
+modernHash :: ToOctets a => HashFunction a Hash32
 modernHash = hash32 modernFNV1aParms
 
 
@@ -87,7 +100,7 @@ modernHash = hash32 modernFNV1aParms
 -- | Mechanism for a key to be decomposed into units processable by the
 -- <http://isthe.com/chongo/tech/comp/fnv/#FNV-1a FNV-1a> hashing algorithm.
 class ToOctets a where
-  toOctets :: a -> [Hash]
+  toOctets :: a -> [Hash32]
 
 -- | Drops all leading zero-bytes
 instance ToOctets Int where
@@ -110,7 +123,7 @@ generateArrayIndices (ArraySize size) = map SlotIndex [0..(size - 1)]
 
 hashToSlot
   :: ToOctets a
-  => HashFunction a
+  => HashFunction a Hash32
   -> Maybe Nonce
   -> ArraySize
   -> a -- ^ key
@@ -132,15 +145,25 @@ hashToSlot hash_function maybe_nonce (ArraySize size) key =
 -- >         hash = hash * FNV_prime
 -- > return hash
 hash32 :: ToOctets a =>
-     FNVParams
-  -> HashFunction a
-hash32 (FNVParams (Hash initial_basis) (Hash magic_prime) bitmask) maybe_nonce =
-
-  -- NOTE: This has to be 'foldl', not 'foldr'
-  Hash . foldl' combine d . toOctets
+     FNVParams Int
+  -> HashFunction a Hash32
+hash32 (FNVParams (Hash initial_basis) innerParams) maybe_nonce =
+  hash32inner innerParams basis
   where
-    d = case maybe_nonce of
+    basis = case maybe_nonce of
       Just (Nonces.Nonce nonce) -> nonce
       Nothing -> initial_basis
 
+
+hash32inner
+  :: ToOctets a
+  => FNVInnerParams Int
+  -> Int -- ^ initial basis
+  -> a
+  -> Hash32
+hash32inner (FNVInnerParams (Hash magic_prime) bitmask) basis =
+
+  -- NOTE: This has to be 'foldl', not 'foldr'
+  Hash . foldl' combine basis . toOctets
+  where
     combine acc = (.&. bitmask) . (* magic_prime) . xor acc . getHash
