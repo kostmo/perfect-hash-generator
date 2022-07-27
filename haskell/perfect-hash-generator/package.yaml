@@ -136,6 +136,8 @@ executables:
     - containers
     - MissingH
     - split
+    - filepath
+    - directory
 tests:
   regression-tests:
     main: Main.hs

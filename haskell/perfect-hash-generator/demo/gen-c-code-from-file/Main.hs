@@ -11,21 +11,20 @@ import qualified CodeWriting
 
 
 data DemoOptions = DemoOptions {
-    inputPath :: FilePath
-  , outputPath :: FilePath
-  , debugEnabled :: Bool
+    csvPath :: FilePath
+  , outputDir :: FilePath
+  , writeCsvFile :: Bool
   }
 
 
 optionsParser :: Parser DemoOptions
 optionsParser = DemoOptions
   <$> strOption
-      ( long "input-filepath"
-      <> help "CSV path"
-      <> value "lookup_table.c")
+      ( long "csv-filepath"
+      <> help "CSV path")
   <*> strOption
-      ( long "output-filepath"
-      <> help "Generated C code file path")
+      ( long "output-dir"
+      <> help "Generated C code output directory")
   <*> switch
       ( long "debug"
       <> help "enable debug mode")
@@ -40,17 +39,16 @@ main = run =<< execParser opts
      <> header "string test" )
 
 
-run (DemoOptions inputPath outputPath _enableDebug) = do
-  either_result <- InputParsing.parseCsv inputPath
+run (DemoOptions csvPath outputDir _enableDebug) = do
+  either_result <- InputParsing.parseCsv csvPath
   let myMap = do 
         result <- either_result
         InputParsing.validateMap result
   print myMap
 
   let lookup_table = Construction.createMinimalPerfectHash $ fromRight (error "Bad map") myMap
-      rendered_code = CodeWriting.renderCode lookup_table 
 
-  writeFile outputPath rendered_code
+  CodeWriting.writeAllFiles lookup_table outputDir
 
   putStrLn "Done."
 

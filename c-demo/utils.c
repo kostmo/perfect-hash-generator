@@ -14,7 +14,6 @@ int countRequiredBytes(long num) {
     }
 
     return count;
-
 }
 
 LongNumberBuffer convertToBytes(long num) {
