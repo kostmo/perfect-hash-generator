@@ -38,7 +38,7 @@ main = run =<< execParser opts
 
 run (DemoOptions csvPath outputDir shouldWriteCsv) = 
   if shouldWriteCsv
-    then CodeWriting.genCsv data_parms csvPath outputDir
+    then CodeWriting.genCsv data_parms csvPath
     else CodeWriting.genCode csvPath outputDir
   where
     data_parms = CodeWriting.MapGenerationParameters 2 7

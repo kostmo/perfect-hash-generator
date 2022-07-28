@@ -3,7 +3,7 @@ module CodeWriting where
 import Data.Either (fromRight)
 import Data.List                    (intercalate)
 import qualified Data.Vector      as Vector
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeDirectory)
 import System.Directory (createDirectoryIfMissing)
 import qualified Data.Map              as Map
 import           Data.Bits            ((.&.))
@@ -97,11 +97,11 @@ data MapGenerationParameters = MapGenerationParameters {
   }
 
 
-genCsv :: MapGenerationParameters -> FilePath -> FilePath -> IO ()
-genCsv (MapGenerationParameters maxKeyByteCount entryCount) csvPath outputDir = do
+genCsv :: MapGenerationParameters -> FilePath -> IO ()
+genCsv (MapGenerationParameters maxKeyByteCount entryCount) csvPath = do
 
-  createDirectoryIfMissing True outputDir
-  writeFile (outputDir </> csvPath) file_contents
+  createDirectoryIfMissing True $ takeDirectory csvPath
+  writeFile csvPath file_contents
 
   putStrLn $ unwords ["Wrote CSV file to:", csvPath]
   where
