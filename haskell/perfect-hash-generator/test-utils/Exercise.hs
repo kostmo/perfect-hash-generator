@@ -79,6 +79,11 @@ mkIntMapTuples valueCount = Map.fromList $ zip random_ints [1..]
 
 -- | Since computing the size of the set is O(N), we
 -- maintain the count separately.
+--
+-- Caution: this could recurse infinitely if an upper bound is
+-- placed on the integer value and the requested value count
+-- is larger than the available integers with values less than
+-- that bound.
 getUniqueRandomIntegers :: RandomGen t => RandIntAccum t -> IntSet
 getUniqueRandomIntegers (RandIntAccum std_gen count current_set) =
 
@@ -93,6 +98,7 @@ getUniqueRandomIntegers (RandIntAccum std_gen count current_set) =
     newstate = if IntSet.member next_int current_set
       then a count current_set
       else a (count - 1) (IntSet.insert next_int current_set)
+
 
 -- * Other utilities
 

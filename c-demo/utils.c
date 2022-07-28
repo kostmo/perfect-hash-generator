@@ -1,5 +1,8 @@
 #include "utils.h"
 
+#include "generated_values.h"
+#include "lookup.h"
+
 
 Fnv32_t fnv_32a_numeric_buf(LongNumberBuffer buf, Fnv32_t initial_basis) {
     return fnv_32a_buf(buf.bytes, buf.size, initial_basis);
@@ -42,3 +45,45 @@ void printChunks(LongNumberBuffer chunks) {
     printf("\n");
 }
 
+
+void read_ints(int keyArray[], GENERATED_VALUES_TYPE valueArray[], int count, const char* file_name) {
+    FILE* file = fopen (file_name, "r");
+
+    int i=0;
+    while (!feof (file)) {  
+        fscanf (file, "%d,%d", &keyArray[i], &valueArray[i]);
+        i++;
+    }
+
+    fclose (file);        
+}
+
+
+bool verify_lookup_correctness(const char* csv_file_name) {
+
+    int input_count = sizeof(HASHED_VALUES)/sizeof(HASHED_VALUES[0]);
+
+    int keyArray[input_count];
+    GENERATED_VALUES_TYPE expectedValues[input_count];
+    read_ints(keyArray, expectedValues, input_count, csv_file_name);
+
+
+    printf("input_count: %d\n", input_count);
+    for (int i=0; i<input_count; i++) {
+        printf("=========================\n");
+        printf("Iteration: %d\n", i);
+
+        printf("Key: %d\n", keyArray[i]);
+        int value_position = lookup(convertToBytes(keyArray[i]));
+        printf("Value position: %d\n", value_position);
+
+        GENERATED_VALUES_TYPE expected_value = expectedValues[i];
+
+        if (expected_value != HASHED_VALUES[value_position]) {
+            printf("Expected value: %d; Actual value: %d\n", expected_value, HASHED_VALUES[value_position]);
+            return false;
+        }
+    }
+
+    return true;
+}

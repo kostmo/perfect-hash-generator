@@ -1,11 +1,8 @@
 module Main where
 
-import Data.Either (fromRight)
 
 import Options.Applicative
 
-import qualified InputParsing
-import qualified Data.PerfectHash.Construction  as Construction
 
 import qualified CodeWriting
 
@@ -26,8 +23,8 @@ optionsParser = DemoOptions
       ( long "output-dir"
       <> help "Generated C code output directory")
   <*> switch
-      ( long "debug"
-      <> help "enable debug mode")
+      ( long "write-csv"
+      <> help "Write a random CSV file")
 
 
 main :: IO ()
@@ -39,16 +36,9 @@ main = run =<< execParser opts
      <> header "string test" )
 
 
-run (DemoOptions csvPath outputDir _enableDebug) = do
-  either_result <- InputParsing.parseCsv csvPath
-  let myMap = do 
-        result <- either_result
-        InputParsing.validateMap result
-  print myMap
-
-  let lookup_table = Construction.createMinimalPerfectHash $ fromRight (error "Bad map") myMap
-
-  CodeWriting.writeAllFiles lookup_table outputDir
-
-  putStrLn "Done."
-
+run (DemoOptions csvPath outputDir shouldWriteCsv) = 
+  if shouldWriteCsv
+    then CodeWriting.genCsv data_parms csvPath outputDir
+    else CodeWriting.genCode csvPath outputDir
+  where
+    data_parms = CodeWriting.MapGenerationParameters 2 7

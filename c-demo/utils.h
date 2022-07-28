@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdbool.h>
 #include "fnv.h"
 
 
@@ -16,3 +17,8 @@ int countRequiredBytes(long);
 LongNumberBuffer convertToBytes(long);
 
 void printChunks(LongNumberBuffer);
+
+
+void read_ints(int keyArray[], int valueArray[], int, const char*);
+
+bool verify_lookup_correctness();

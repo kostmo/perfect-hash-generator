@@ -1,4 +1,11 @@
 #!/bin/bash -xe
 
-stack run gen-c-code-from-file -- --csv-filepath ../c-demo/data/key-value-pairs.csv --output-dir ../c-demo/lookup_gen
+GENERATED_DIR="${1:-local-gen}"
+GENERATED_DATA_DIR=$GENERATED_DIR/data
+GENERATED_CODE_DIR=$GENERATED_DIR/code
+
+
+stack run gen-c-code-from-file -- --write-csv --csv-filepath $GENERATED_DATA_DIR/key-value-pairs.csv --output-dir $GENERATED_CODE_DIR
+
+stack run gen-c-code-from-file -- --csv-filepath $GENERATED_DATA_DIR/key-value-pairs.csv --output-dir $GENERATED_CODE_DIR
 

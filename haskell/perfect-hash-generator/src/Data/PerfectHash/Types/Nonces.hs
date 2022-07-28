@@ -1,4 +1,5 @@
 {-# OPTIONS_HADDOCK hide #-}
+{-# LANGUAGE Safe                 #-}
 module Data.PerfectHash.Types.Nonces where
 
 

@@ -3,4 +3,4 @@ demo
 *.o
 *.a
 
-lookup_gen
+gen

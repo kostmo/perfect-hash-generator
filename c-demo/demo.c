@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include "fnv.h"
-#include "lookup.h"
 #include "utils.h"
-
-#include "generated_values.h"
 
 
 const long NUMERIC_VALUE = 7000;
@@ -34,19 +31,12 @@ int main() {
     Fnv32_t hash_val2 = fnv_32a_buf(myOutput.bytes, myOutput.size, FNV1_32A_INIT);
     print_fnv32(hash_val2, bmask, 0, "This is a numeric test");
 
-    int inputs[] = {73, 21, 98, 11, 39, 40, 85};
-    int input_count = sizeof(inputs)/sizeof(inputs[0]);
-    printf("input_count: %d\n", input_count);
-    for (int i=0; i<input_count; i++) {
-        printf("=========================\n");
-        printf("Iteration: %d\n", i);
 
-        int value_position = lookup(convertToBytes(inputs[i]));
-        printf("Value position: %d\n", value_position);
-        printf("Actual value: %d\n", HASHED_VALUES[value_position]);
-    }
 
-    return 0;
+    bool is_correct = verify_lookup_correctness("gen/data/key-value-pairs.csv");
+
+
+    return !is_correct;
 }
 
 
