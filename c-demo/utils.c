@@ -55,7 +55,7 @@ void read_ints(int keyArray[], GENERATED_VALUES_TYPE valueArray[], int count, co
         i++;
     }
 
-    fclose (file);        
+    fclose (file);
 }
 
 

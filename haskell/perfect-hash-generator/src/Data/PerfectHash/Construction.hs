@@ -224,7 +224,7 @@ findNonceForBucketRecursive algorithm_params nonce_attempt values_and_size bucke
 
   where
     wrapSlotIndicesAsAttempt = PlacementAttempt nonce_attempt .
-      flip (zipWith SingletonBucket) bucket . map (Hashing.Hash . Hashing.getIndex)
+      flip (zipWith SingletonBucket) bucket . map (Hashing.Hash . fromIntegral . Hashing.getIndex)
 
     -- NOTE: attemptNonceRecursive returns a list of "Maybe SlotIndex"
     -- records. If *any* of those elements are Nothing (that is, at
@@ -277,14 +277,14 @@ processMultiEntryBuckets
         bucket_members
 
     new_nonces = IntMap.insert
-      (Hashing.getHash computed_hash)
+      (fromIntegral $ Hashing.getHash computed_hash)
       (WrappedNonce nonce)
       old_nonces
 
     new_values_dict = foldr place_values old_values_dict slots_for_bucket
 
     place_values (SingletonBucket slot_val (_, value)) =
-      IntMap.insert (Hashing.getHash slot_val) value
+      IntMap.insert (fromIntegral $ Hashing.getHash slot_val) value
 
 
 -- | This function exploits the sorted structure of the list
@@ -345,7 +345,7 @@ preliminaryBucketPlacement algo_params sized_list =
 
     slot_key_pairs = deriveTuples f tuplified_words_dict
 
-    bucket_hash_tuples = map (uncurry HashBucket . first Hashing.Hash) $
+    bucket_hash_tuples = map (uncurry HashBucket . first (Hashing.Hash . fromIntegral)) $
       IntMap.toList $ binTuplesBySecond slot_key_pairs
 
 
@@ -369,7 +369,7 @@ assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_
       zip non_colliding_buckets unused_slots
 
     insertDirectEntry (SingletonBucket computed_hash _, free_slot_index) =
-      IntMap.insert (Hashing.getHash computed_hash) $ DirectEntry free_slot_index
+      IntMap.insert (fromIntegral $ Hashing.getHash computed_hash) $ DirectEntry free_slot_index
 
     final_nonces = foldr
       insertDirectEntry

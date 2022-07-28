@@ -11,7 +11,7 @@ import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (assertBool, assertEqual)
 
 import qualified Data.PerfectHash.Construction  as Construction
-import  Data.PerfectHash.Hashing       (Hash)
+import  Data.PerfectHash.Hashing       (Hash32)
 import qualified Data.PerfectHash.Hashing       as Hashing
 import qualified Data.PerfectHash.Lookup  as Lookup
 
@@ -21,7 +21,7 @@ import qualified Exercise
 testHashComputation
   :: (Hashing.ToOctets a, Show a)
   => a
-  -> Hash
+  -> Hash32
   -> IO ()
 testHashComputation key val =
   assertEqual error_message val computed_hash

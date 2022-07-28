@@ -20,6 +20,7 @@ import           Data.Text            (Text)
 import qualified Data.Text            as T
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 import Data.PerfectHash.Types.Nonces (Nonce)
+import Data.Word (Word32)
 
 
 -- Types
@@ -34,15 +35,12 @@ import Data.PerfectHash.Types.Nonces (Nonce)
 -- use when the nonce would otherwise be zero.
 type HashFunction a b = Maybe Nonce -> a -> b
 
-
-newtype SlotIndex = SlotIndex {getIndex :: Int}
-
-
-type Hash32 = Hash Int
-
-
 newtype Hash a = Hash {getHash :: a}
   deriving (Eq, Show)
+
+type Hash32 = Hash Word32
+
+newtype SlotIndex = SlotIndex {getIndex :: Int}
 
 newtype ArraySize = ArraySize Int
   deriving Show
@@ -77,11 +75,11 @@ initialBasisFNV1a32bit :: Hash32
 initialBasisFNV1a32bit = Hash 0x811c9dc5
 
 
-mask32bits :: Int
+mask32bits :: Word32
 mask32bits = 0xffffffff
 
 
-modernFNV1aParms :: FNVParams Int
+modernFNV1aParms :: FNVParams Word32
 modernFNV1aParms = FNVParams {
     initialBasis = initialBasisFNV1a32bit
   , innerParams = FNVInnerParams {
@@ -107,7 +105,7 @@ instance ToOctets Int where
   toOctets = map Hash . dropWhile (== 0) . map fromIntegral . B.unpack . encode
 
 instance ToOctets String where
-  toOctets = map $ Hash . ord
+  toOctets = map $ Hash . fromIntegral . ord
 
 instance ToOctets Text where
   toOctets = toOctets . T.unpack
@@ -129,7 +127,7 @@ hashToSlot
   -> a -- ^ key
   -> SlotIndex
 hashToSlot hash_function maybe_nonce (ArraySize size) key =
-  SlotIndex $ getHash (hash_function maybe_nonce key) `mod` size
+  SlotIndex $ fromIntegral (getHash (hash_function maybe_nonce key)) `mod` size
 
 
 -- | The interface is comparable to the
@@ -145,25 +143,24 @@ hashToSlot hash_function maybe_nonce (ArraySize size) key =
 -- >         hash = hash * FNV_prime
 -- > return hash
 hash32 :: ToOctets a =>
-     FNVParams Int
+     FNVParams Word32
   -> HashFunction a Hash32
 hash32 (FNVParams (Hash initial_basis) innerParams) maybe_nonce =
   hash32inner innerParams basis
   where
     basis = case maybe_nonce of
-      Just (Nonces.Nonce nonce) -> nonce
+      Just (Nonces.Nonce nonce) -> fromIntegral nonce
       Nothing -> initial_basis
 
 
 hash32inner
   :: ToOctets a
-  => FNVInnerParams Int
-  -> Int -- ^ initial basis
+  => FNVInnerParams Word32
+  -> Word32 -- ^ initial basis
   -> a
   -> Hash32
 hash32inner (FNVInnerParams (Hash magic_prime) bitmask) basis =
 
-  -- NOTE: This has to be 'foldl', not 'foldr'
   Hash . foldl' combine basis . toOctets
   where
     combine acc = (.&. bitmask) . (* magic_prime) . xor acc . getHash
