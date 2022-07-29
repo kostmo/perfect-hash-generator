@@ -15,8 +15,8 @@ splitTuple delimiter string =
 
 
 -- | Ensures all keys are unique before converting to Map
-parseCsv :: (Read a, Read b) => FilePath -> IO (Either String [(a, b)])
-parseCsv filePath = do
+parseCsv :: Read b => (String -> Either String a) -> FilePath -> IO (Either String [(a, b)])
+parseCsv key_parser filePath = do
   file_lines <- readFile filePath
   return $ mapM wrapped_splitter $ lines file_lines
   where
@@ -24,7 +24,7 @@ parseCsv filePath = do
       Left e -> Left $ unwords ["On line:", line, ":", e]
       Right x -> Right x
     splitter line = do
-      keyVal <- wrappedReadEither key_string
+      keyVal <- key_parser key_string
       valVal <- wrappedReadEither val_string
       return (keyVal, valVal)
       where
@@ -39,7 +39,7 @@ wrappedReadEither text = case myRead text of
     myRead str = readEither $ strip str
 
 
-validateMap :: [(Int, Integer)] -> Either String (Map Int Integer)
+validateMap :: (Show a, Ord a) => [(a, Integer)] -> Either String (Map a Integer)
 validateMap tuples = do
   unless (Map.null repeats) $
     Left $ unwords ["Repeated values:", show repeats]

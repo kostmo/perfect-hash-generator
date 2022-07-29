@@ -8,7 +8,8 @@ import qualified CodeWriting
 
 
 data DemoOptions = DemoOptions {
-    csvPath :: FilePath
+    keyType :: String
+  , csvPath :: FilePath
   , outputDir :: FilePath
   , writeCsvFile :: Bool
   }
@@ -17,6 +18,9 @@ data DemoOptions = DemoOptions {
 optionsParser :: Parser DemoOptions
 optionsParser = DemoOptions
   <$> strOption
+      ( long "key-type"
+      <> help "Key type")
+  <*> strOption
       ( long "csv-filepath"
       <> help "CSV path")
   <*> strOption
@@ -36,9 +40,17 @@ main = run =<< execParser opts
      <> header "string test" )
 
 
-run (DemoOptions csvPath outputDir shouldWriteCsv) = 
+run (DemoOptions keyTypeStr csvPath outputDir shouldWriteCsv) = 
   if shouldWriteCsv
     then CodeWriting.genCsv data_parms csvPath
-    else CodeWriting.genCode csvPath outputDir
+    else CodeWriting.genCode keyType csvPath outputDir
   where
-    data_parms = CodeWriting.MapGenerationParameters 2 7
+    data_parms = CodeWriting.MapGenerationParameters
+      keyType
+      2
+      7
+
+    keyType = case keyTypeStr of
+      "int"    -> CodeWriting.IntKey
+      "string" -> CodeWriting.StringKey
+      _ -> error "Accepted types are 'int' and 'string'."

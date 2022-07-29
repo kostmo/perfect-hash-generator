@@ -1,8 +1,8 @@
 module CodeWriting where
 
-import Data.Either (fromRight)
 import Data.List                    (intercalate)
 import qualified Data.Vector      as Vector
+import Text.Read                   (readEither)
 import System.FilePath ((</>), takeDirectory)
 import System.Directory (createDirectoryIfMissing)
 import qualified Data.Map              as Map
@@ -12,6 +12,11 @@ import qualified InputParsing
 import qualified Data.PerfectHash.Construction  as Construction
 import qualified Data.PerfectHash.Lookup  as Lookup
 import qualified Exercise
+
+
+data KeyType
+  = IntKey
+  | StringKey
 
 
 bracket :: String -> String
@@ -43,7 +48,8 @@ renderValuesTableCode table = unlines [
     ]
 
   where
-    values_line = curly $ intercalate ", " $ map show $ Vector.toList $ Lookup.values table
+    values_line = curly $ intercalate ", " $
+      map show $ Vector.toList $ Lookup.values table
 
 
 writeAllFiles :: Lookup.LookupTable Integer -> FilePath -> IO ()
@@ -77,14 +83,37 @@ writeAllFiles lookup_table outputDir = do
     rendered_values_table_code = CodeWriting.renderValuesTableCode lookup_table 
 
 
-genCode :: FilePath -> FilePath -> IO ()
-genCode csvPath outputDir = do
-  either_result <- InputParsing.parseCsv csvPath
-  let myMap = InputParsing.validateMap =<< either_result
+genLookupTable :: KeyType -> FilePath -> IO (Lookup.LookupTable Integer)
+genLookupTable keyType csvPath = do
 
-  print myMap
+  either_result_int <- InputParsing.parseCsv readEither csvPath :: IO (Either String [(Int, Integer)])
+  either_result_string <- InputParsing.parseCsv pure csvPath :: IO (Either String [(String, Integer)])
 
-  let lookup_table = Construction.createMinimalPerfectHash $ fromRight (error "Bad map") myMap
+  let my_map_int :: Map.Map Int Integer
+      my_map_int = makeMap either_result_int
+
+      my_map_string :: Map.Map String Integer
+      my_map_string = makeMap either_result_string
+
+      lookup_table = case keyType of
+        IntKey -> Construction.createMinimalPerfectHash my_map_int
+        StringKey -> Construction.createMinimalPerfectHash my_map_string
+
+  return lookup_table
+
+  where
+    makeMap :: (Ord a, Show a) => Either String [(a, Integer)] -> Map.Map a Integer
+    makeMap either_result = case either_map of
+      Right x -> x
+      Left y -> error y
+      where
+        either_map = InputParsing.validateMap =<< either_result
+
+
+genCode :: KeyType -> FilePath -> FilePath -> IO ()
+genCode keyType csvPath outputDir = do
+
+  lookup_table <- genLookupTable keyType csvPath
 
   CodeWriting.writeAllFiles lookup_table outputDir
 
@@ -92,25 +121,30 @@ genCode csvPath outputDir = do
 
 
 data MapGenerationParameters = MapGenerationParameters {
-    maxKeyByteCount :: Int
+    keyType :: KeyType
+  , maxKeyByteCount :: Int
   , entryCount :: Int
   }
 
 
 genCsv :: MapGenerationParameters -> FilePath -> IO ()
-genCsv (MapGenerationParameters maxKeyByteCount entryCount) csvPath = do
+genCsv (MapGenerationParameters keyType maxKeyByteCount entryCount) csvPath = do
 
   createDirectoryIfMissing True $ takeDirectory csvPath
   writeFile csvPath file_contents
 
   putStrLn $ unwords ["Wrote CSV file to:", csvPath]
   where
-    int_map = Exercise.mkIntMapTuples entryCount
+    file_contents = case keyType of
+      IntKey -> renderFileContents $ map (\(k, v) -> (show k, show v)) $
+        Map.toList $ Map.mapKeys (.&. bitmask) $ Exercise.mkIntMapTuples entryCount
+        where 
+          bitmask = 2^(maxKeyByteCount * 8) - 1
+      StringKey -> renderFileContents $ map (\(k, v) -> (k, show v)) $
+        Map.toList $ Map.fromList [("foo", 1), ("bar", 2), ("abc", 3)]
     
-    bitmask = 2^(maxKeyByteCount*8) - 1
-    modified_int_map = Map.mapKeys (.&. bitmask) int_map
-    
-    file_contents = unlines $
-      map (\(k, v) -> intercalate "," $ map show [k, v]) $
-        Map.toList modified_int_map
+    renderFileContents :: [(String, String)] -> String
+    renderFileContents my_tuples = unlines $
+      map (\(k, v) -> intercalate "," [k, v]) my_tuples
+        
 

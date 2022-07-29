@@ -4,7 +4,9 @@
 GENERATED_DIR="${1:-local-gen}"
 GENERATED_CODE_DIR=$GENERATED_DIR/code
 
-OUTPUT_FILENAME=demo
+EXEC_SUFFIX="${2:-int}"
+
+OUTPUT_FILENAME=demo-$EXEC_SUFFIX
 FNV_LIB_DIR=fnv
 
 FILES="demo.c utils.c lookup.c $GENERATED_CODE_DIR/generated_lookup.c $GENERATED_CODE_DIR/generated_values.c"

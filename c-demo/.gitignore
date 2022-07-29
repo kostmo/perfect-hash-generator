@@ -1,6 +1,7 @@
-demo
+demo-int
+demo-string
 
 *.o
 *.a
 
-gen
+gen/

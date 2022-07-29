@@ -4,3 +4,5 @@
 
 
 unsigned int lookup(LongNumberBuffer);
+
+unsigned int lookup_str(char* key);

@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "utils.h"
 
 #include "generated_values.h"
@@ -46,7 +48,9 @@ void printChunks(LongNumberBuffer chunks) {
 }
 
 
-void read_ints(int keyArray[], GENERATED_VALUES_TYPE valueArray[], int count, const char* file_name) {
+
+
+void read_int_pairs(int keyArray[], GENERATED_VALUES_TYPE valueArray[], int count, const char* file_name) {
     FILE* file = fopen (file_name, "r");
 
     int i=0;
@@ -59,13 +63,31 @@ void read_ints(int keyArray[], GENERATED_VALUES_TYPE valueArray[], int count, co
 }
 
 
-bool verify_lookup_correctness(const char* csv_file_name) {
+void read_string_pairs(char* keyArray[], GENERATED_VALUES_TYPE valueArray[], int count, const char* file_name) {
+    FILE* file = fopen (file_name, "r");
+
+    int i=0;
+    while (!feof (file)) {
+
+        keyArray[i] = malloc(100);
+
+        fscanf (file, "%99s,%d", keyArray[i], &valueArray[i]);
+        i++;
+    }
+
+    fclose (file);
+}
+
+
+
+
+bool verify_int_key_lookup_correctness(const char* csv_file_name) {
 
     int input_count = sizeof(HASHED_VALUES)/sizeof(HASHED_VALUES[0]);
 
     int keyArray[input_count];
     GENERATED_VALUES_TYPE expectedValues[input_count];
-    read_ints(keyArray, expectedValues, input_count, csv_file_name);
+    read_int_pairs(keyArray, expectedValues, input_count, csv_file_name);
 
 
     printf("input_count: %d\n", input_count);
@@ -87,3 +109,36 @@ bool verify_lookup_correctness(const char* csv_file_name) {
 
     return true;
 }
+
+
+bool verify_string_key_lookup_correctness(const char* csv_file_name) {
+
+    int input_count = sizeof(HASHED_VALUES)/sizeof(HASHED_VALUES[0]);
+
+    char* keyArray[input_count];
+    GENERATED_VALUES_TYPE expectedValues[input_count];
+    read_string_pairs(keyArray, expectedValues, input_count, csv_file_name);
+
+
+    printf("input_count: %d\n", input_count);
+    for (int i=0; i<input_count; i++) {
+        printf("=========================\n");
+        printf("Iteration: %d\n", i);
+
+        printf("Key: %s\n", keyArray[i]);
+        int value_position = lookup_str(keyArray[i]);
+        printf("Value position: %d\n", value_position);
+
+        GENERATED_VALUES_TYPE expected_value = expectedValues[i];
+
+        if (expected_value != HASHED_VALUES[value_position]) {
+            printf("Expected value: %d; Actual value: %d\n", expected_value, HASHED_VALUES[value_position]);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
