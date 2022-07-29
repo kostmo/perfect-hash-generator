@@ -11,7 +11,7 @@ char STRING_VALUE[] = "blarg";
 const Fnv32_t bmask = (Fnv32_t) 0xffffffff;
 
 
-int main() {
+int main(int argc, char *argv[]) {
 
     /* length does not include trailing NUL byte in the test vector */
 
@@ -19,6 +19,11 @@ int main() {
 //    Fnv32_t hash_val = fnv_32a_buf(buf, length_of_buf, FNV1_32A_INIT);
     Fnv32_t hash_val1 = fnv_32a_str(STRING_VALUE, FNV1_32A_INIT);
 
+
+    printf("KARL: argc: %d\n", argc);
+    printf("KARL: argv[0]: %s\n", argv[0]);
+    printf("KARL: argv[1]: %s\n", argv[1]);
+    printf("KARL: argv[2]: %s\n", argv[2]);
 
 
     print_fnv32(hash_val1, bmask, 0, "This is a string test");
@@ -32,14 +37,15 @@ int main() {
     print_fnv32(hash_val2, bmask, 0, "This is a numeric test");
 
 
-
-    bool ints_are_correct = verify_int_key_lookup_correctness("gen/int-keys/data/key-value-pairs.csv");
-
-//    bool strings_are_correct = verify_string_key_lookup_correctness("gen/string-keys/data/key-value-pairs.csv");
-    bool strings_are_correct = true;
-
-
-    return !(ints_are_correct && strings_are_correct);
+    if (argv[1][0] == 'i') {
+        printf("============== COMPARING INTS =============\n");
+        bool ints_are_correct = verify_int_key_lookup_correctness(argv[2]);
+        return !ints_are_correct;
+    } else {
+        printf("============== COMPARING STRINGS =============\n");
+        bool strings_are_correct = verify_string_key_lookup_correctness(argv[2]);
+        return !strings_are_correct;
+    }
 }
 
 
