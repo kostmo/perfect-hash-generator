@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "utils.h"
 
@@ -69,9 +70,32 @@ void read_string_pairs(char* keyArray[], GENERATED_VALUES_TYPE valueArray[], int
     int i=0;
     while (!feof (file)) {
 
-        keyArray[i] = malloc(100);
+        char* line = malloc(100);
 
-        fscanf (file, "%s,%d", keyArray[i], &valueArray[i]);
+        if (fgets(line, 100, file) != NULL) {
+
+            const char delimiter[2] = ",";
+
+            char *token;
+
+
+            /* get the first token */
+            token = strtok(line, delimiter);
+
+            keyArray[i] = token;
+
+
+
+            /* get the second token */
+            token = strtok(NULL, delimiter);
+
+            valueArray[i] = atoi(token);
+
+        } else {
+            break;
+        }
+
+
 
         printf("KO KO KO scanned string: %s\n", keyArray[i]);
         i++;

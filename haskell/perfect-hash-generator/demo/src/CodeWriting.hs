@@ -138,7 +138,7 @@ genCsv (MapGenerationParameters keyType maxKeyByteCount entryCount) csvPath = do
     file_contents = case keyType of
       IntKey -> renderFileContents $ map (\(k, v) -> (show k, show v)) $
         Map.toList $ Map.mapKeys (.&. bitmask) $ Exercise.mkIntMapTuples entryCount
-        where 
+        where
           bitmask = 2^(maxKeyByteCount * 8) - 1
       StringKey -> renderFileContents $ map (\(k, v) -> (k, show v)) $
         Map.toList $ Map.fromList [("foo", 1), ("bar", 2), ("abc", 3)]
