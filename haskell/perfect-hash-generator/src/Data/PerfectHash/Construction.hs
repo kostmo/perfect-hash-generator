@@ -46,6 +46,7 @@ import Data.Function (on)
 import           Data.Ord                 (Down (Down))
 import qualified Data.Vector      as Vector
 import qualified Data.Maybe               as Maybe
+import Data.Monoid (getFirst, First(..))
 
 import qualified Data.PerfectHash.Hashing as Hashing
 import Data.PerfectHash.Hashing (Hash32, ArraySize)
@@ -169,24 +170,25 @@ attemptNonce
   :: Hashing.ToOctets a
   => AlgorithmParams a
   -> IntMapAndSize b
-  -> Nonce
   -> [a] -- ^ keys
+  -> Nonce
   -> Maybe [Hashing.SlotIndex]
 attemptNonce
     algorithm_params
     values_and_size
-    nonce
-    remaining_bucket_keys = do
+    remaining_bucket_keys
+    nonce = do
 
     NonceAttemptAccumulator _ vals <- maybe_fold_result
     return vals
 
   where
-    maybe_fold_result = foldr myCallback (Just $ NonceAttemptAccumulator mempty []) remaining_bucket_keys
+    initial_accumulator = pure $ NonceAttemptAccumulator mempty mempty
+    maybe_fold_result = foldr f initial_accumulator remaining_bucket_keys
 
     IntMapAndSize values size = values_and_size
 
-    myCallback current_key maybe_prev_accumulator = do
+    f current_key maybe_prev_accumulator = do
       NonceAttemptAccumulator occupied_slots_for_this_nonce_attempt placed_slots <- maybe_prev_accumulator
       guard $ IntSet.notMember slotval occupied_slots_for_this_nonce_attempt
       guard $ IntMap.notMember slotval values
@@ -209,52 +211,43 @@ attemptNonce
 --
 -- Increment the candidate nonce by @1@ each time.
 -- Theoretically we're guaranteed to eventually find a solution.
-findNonceForBucketRecursive
+findNonceForBucket
   :: (Hashing.ToOctets a)
   => AlgorithmParams a
-  -> Nonce -- ^ nonce to attempt
   -> IntMapAndSize b -- ^ previously placed buckets
   -> [(a, b)] -- ^ colliding keys for this bucket
-  -> PlacementAttempt (a, b)
-findNonceForBucketRecursive algorithm_params nonce_attempt previous_placements bucket =
+  -> Maybe (PlacementAttempt (a, b))
+findNonceForBucket algorithm_params previous_placements bucket =
 
-  -- This is a "lazy" (and awkward) way to specify recursion:
-  -- If the result ("result_for_this_iteration") at this iteration of the recursion
-  -- is not "Nothing", then, wrap it in a "PlacementAttempt" record.
-  -- Otherwise, descend one layer deeper by computing "recursive_result".
-  maybe
-    recursive_result
-    wrapSlotIndicesAsAttempt
-    maybe_final_result
+  getFirst $ foldMap f nonce_candidates
 
   where
-    wrapSlotIndicesAsAttempt = PlacementAttempt nonce_attempt .
-      flip (zipWith SlotBucket) bucket
+    nonce_params = nonceParams algorithm_params
+    nonce_candidates = iterate
+      (getNextNonceCandidate nonce_params)
+      (startingNonce nonce_params)
 
-    maybe_final_result = attemptNonce
+    f nonce_attempt = First $ wrapSlotIndicesAsAttempt nonce_attempt <$> attemptNonce
       algorithm_params
       previous_placements
-      nonce_attempt
       (map fst bucket)
+      nonce_attempt
 
-    recursive_result = findNonceForBucketRecursive
-      algorithm_params
-      (getNextNonceCandidate (nonceParams algorithm_params) nonce_attempt)
-      previous_placements
-      bucket
+    wrapSlotIndicesAsAttempt nonce_attempt = PlacementAttempt nonce_attempt .
+      flip (zipWith SlotBucket) bucket
 
 
 -- | Searches for a nonce for this bucket, starting with the value @1@,
 -- until one is found that results in no collisions for both this bucket
 -- and all previously placed buckets.
-processMultiEntryBuckets
+processMultiEntryBucket
   :: (Hashing.ToOctets a)
   => AlgorithmParams a
   -> ArraySize
   -> LookupTable b
   -> HashBucket (a, b)
   -> LookupTable b
-processMultiEntryBuckets
+processMultiEntryBucket
     algorithm_params
     size
     previously_placed_buckets
@@ -266,15 +259,14 @@ processMultiEntryBuckets
 
     previous_placements = IntMapAndSize old_values_dict size
 
-    -- This is assured to succeed; it starts with a nonce of 1
-    -- but keeps incrementing it until all of the keys in this
-    -- bucket are placeable.
-    PlacementAttempt nonce slots_for_bucket =
-      findNonceForBucketRecursive
-        algorithm_params
-        (startingNonce $ nonceParams algorithm_params)
-        previous_placements
-        bucket_members
+    -- This is assured to succeed, which is why it's safe to
+    -- use "fromJust" on it
+    maybe_successful_attempt = findNonceForBucket
+      algorithm_params
+      previous_placements
+      bucket_members
+
+    PlacementAttempt nonce slots_for_bucket = Maybe.fromJust maybe_successful_attempt
 
     new_nonces = IntMap.insert
       (fromIntegral $ Hashing.getHash computed_hash)
@@ -317,7 +309,7 @@ handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
     -- first, making it improbable that the large buckets will be placeable,
     -- and potentially resulting in an infinite loop.
     lookup_table = foldl'
-      (processMultiEntryBuckets algorithm_params size)
+      (processMultiEntryBucket algorithm_params size)
       emptyLookupTable
       multi_entry_buckets
 
@@ -448,8 +440,7 @@ binTuplesBySecond
   -> IntMap [a]
 binTuplesBySecond = foldr f mempty
   where
-    f = uncurry (IntMap.insertWith mappend) .
-      fmap pure . swap
+    f = uncurry (IntMap.insertWith mappend) . fmap pure . swap
 
 
 -- | duplicates the argument into both members of the tuple
