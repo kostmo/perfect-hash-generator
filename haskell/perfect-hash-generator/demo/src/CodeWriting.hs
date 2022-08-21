@@ -52,9 +52,8 @@ renderValuesTableCode table = unlines [
       map show $ Vector.toList $ Lookup.values table
 
 
-writeAllFiles :: Lookup.LookupTable Integer -> FilePath -> IO ()
-writeAllFiles lookup_table outputDir = do
-  createDirectoryIfMissing True outputDir
+writeLookupFilePair :: Lookup.LookupTable Integer -> FilePath -> IO ()
+writeLookupFilePair lookup_table outputDir = do
 
   writeFile (outputDir </> "generated_lookup.h") $ unlines [
       "#include \"fnv.h\""
@@ -64,6 +63,12 @@ writeAllFiles lookup_table outputDir = do
     ]
 
   writeFile (outputDir </> "generated_lookup.c") rendered_lookup_table_code
+  where
+    rendered_lookup_table_code = CodeWriting.renderLookupTableCode lookup_table 
+
+
+writeValuesFilePair :: Lookup.LookupTable Integer -> FilePath -> IO ()
+writeValuesFilePair lookup_table outputDir = do
 
   writeFile (outputDir </> "generated_values.h") $ unlines [
       "#define GENERATED_VALUES_TYPE int"
@@ -77,10 +82,18 @@ writeAllFiles lookup_table outputDir = do
     ]
 
   writeFile (outputDir </> "generated_values.c") rendered_values_table_code
+
   where
     elem_count = length $ Lookup.values lookup_table
-    rendered_lookup_table_code = CodeWriting.renderLookupTableCode lookup_table 
     rendered_values_table_code = CodeWriting.renderValuesTableCode lookup_table 
+
+
+writeAllFiles :: Lookup.LookupTable Integer -> FilePath -> IO ()
+writeAllFiles lookup_table outputDir = do
+  createDirectoryIfMissing True outputDir
+
+  writeLookupFilePair lookup_table outputDir
+  writeValuesFilePair lookup_table outputDir
 
 
 genLookupTable :: KeyType -> FilePath -> IO (Lookup.LookupTable Integer)
@@ -140,7 +153,7 @@ genCsv (MapGenerationParameters keyType maxKeyByteCount entryCount) csvPath = do
         Map.toList $ Map.mapKeys (.&. bitmask) $ Exercise.mkIntMapTuples entryCount
         where
           bitmask = 2^(maxKeyByteCount * 8) - 1
-      StringKey -> renderFileContents $ map (\(k, v) -> (k, show v)) $
+      StringKey -> renderFileContents $ map (fmap show) $
         Map.toList $ Map.fromList [("foo", 1), ("bar", 2), ("abc", 3)]
     
     renderFileContents :: [(String, String)] -> String

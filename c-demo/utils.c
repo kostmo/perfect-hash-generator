@@ -85,7 +85,6 @@ void read_string_pairs(char* keyArray[], GENERATED_VALUES_TYPE valueArray[], int
             keyArray[i] = token;
 
 
-
             /* get the second token */
             token = strtok(NULL, delimiter);
 
@@ -95,16 +94,11 @@ void read_string_pairs(char* keyArray[], GENERATED_VALUES_TYPE valueArray[], int
             break;
         }
 
-
-
-        printf("KO KO KO scanned string: %s\n", keyArray[i]);
         i++;
     }
 
     fclose (file);
 }
-
-
 
 
 bool verify_int_key_lookup_correctness(const char* csv_file_name) {
