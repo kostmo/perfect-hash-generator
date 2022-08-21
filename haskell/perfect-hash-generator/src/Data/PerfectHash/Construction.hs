@@ -33,7 +33,7 @@ module Data.PerfectHash.Construction (
 
 import Control.Arrow (first)
 import Data.Tuple (swap)
-import           Control.Monad            (join)
+import           Control.Monad            (join, guard)
 import Data.SortedList (SortedList, toSortedList, fromSortedList)
 import           Data.Foldable            (foldl')
 import qualified Data.IntSet              as IntSet
@@ -101,8 +101,11 @@ data SizedList a = SizedList [a] ArraySize
 data IntMapAndSize a = IntMapAndSize (IntMap a) ArraySize
 
 
+data SlotBucket a = SlotBucket Hashing.SlotIndex a
+
+
 -- | slots for each bucket with the current nonce attempt
-data PlacementAttempt a = PlacementAttempt Nonce [SingletonBucket a]
+data PlacementAttempt a = PlacementAttempt Nonce [SlotBucket a]
 
 
 data PartialSolution a b = PartialSolution (LookupTable b) [SingletonBucket (a, b)]
@@ -151,52 +154,54 @@ convertToVector x = Lookup.LookupTable a1 a2
     a2 = Vector.fromList $ map snd $ IntMap.toAscList $ vals x
 
 
+
+data NonceAttemptAccumulator = NonceAttemptAccumulator IntSet [Hashing.SlotIndex]
+
+
 -- | Computes a slot in the destination array (Data.PerfectHash.Lookup.values)
 -- for every element in this multi-entry bucket, for the given nonce.
 --
--- Return a Nothing for a slot if it collides.
+-- Return Nothing if a slot collides.
 --
--- This function is able to fail fast if one of the elements of the bucket
+-- This function is able to fail-fast if one of the elements of the bucket
 -- yields a collision when using the new nonce.
-attemptNonceRecursive
+attemptNonce
   :: Hashing.ToOctets a
   => AlgorithmParams a
   -> IntMapAndSize b
   -> Nonce
-  -> IntSet -- ^ occupied slots
-  -> [(a, b)] -- ^ keys
-  -> [Maybe Hashing.SlotIndex]
-attemptNonceRecursive _ _ _ _ [] = []
-attemptNonceRecursive
+  -> [a] -- ^ keys
+  -> Maybe [Hashing.SlotIndex]
+attemptNonce
     algorithm_params
     values_and_size
     nonce
-    occupied_slots
-    ((current_key, _):remaining_bucket_keys) =
+    remaining_bucket_keys = do
 
-  if cannot_use_slot
-    then pure Nothing
-    else Just slot : recursive_result
+    NonceAttemptAccumulator _ vals <- maybe_fold_result
+    return vals
 
   where
+    maybe_fold_result = foldr myCallback (Just $ NonceAttemptAccumulator mempty []) remaining_bucket_keys
+
     IntMapAndSize values size = values_and_size
-    slot = Hashing.hashToSlot
-      (hashFunction algorithm_params)
-      (Just nonce)
-      size
-      current_key
 
-    Hashing.SlotIndex slotval = slot
+    myCallback current_key maybe_prev_accumulator = do
+      NonceAttemptAccumulator occupied_slots_for_this_nonce_attempt placed_slots <- maybe_prev_accumulator
+      guard $ IntSet.notMember slotval occupied_slots_for_this_nonce_attempt
+      guard $ IntMap.notMember slotval values
+      return $ NonceAttemptAccumulator
+        (IntSet.insert slotval occupied_slots_for_this_nonce_attempt)
+        (slot:placed_slots)
 
-    -- TODO: Create a record "SlotOccupation" to encapsulate the IntSet implementation
-    cannot_use_slot = IntSet.member slotval occupied_slots || IntMap.member slotval values
+      where
+        slot = Hashing.hashToSlot
+          (hashFunction algorithm_params)
+          (Just nonce)
+          size
+          current_key
 
-    recursive_result = attemptNonceRecursive
-      algorithm_params
-      values_and_size
-      nonce
-      (IntSet.insert slotval occupied_slots)
-      remaining_bucket_keys
+        Hashing.SlotIndex slotval = slot
 
 
 -- | Repeatedly try different values of the nonce until we find a hash function
@@ -208,10 +213,10 @@ findNonceForBucketRecursive
   :: (Hashing.ToOctets a)
   => AlgorithmParams a
   -> Nonce -- ^ nonce to attempt
-  -> IntMapAndSize b
+  -> IntMapAndSize b -- ^ previously placed buckets
   -> [(a, b)] -- ^ colliding keys for this bucket
   -> PlacementAttempt (a, b)
-findNonceForBucketRecursive algorithm_params nonce_attempt values_and_size bucket =
+findNonceForBucketRecursive algorithm_params nonce_attempt previous_placements bucket =
 
   -- This is a "lazy" (and awkward) way to specify recursion:
   -- If the result ("result_for_this_iteration") at this iteration of the recursion
@@ -224,23 +229,18 @@ findNonceForBucketRecursive algorithm_params nonce_attempt values_and_size bucke
 
   where
     wrapSlotIndicesAsAttempt = PlacementAttempt nonce_attempt .
-      flip (zipWith SingletonBucket) bucket . map (Hashing.Hash . fromIntegral . Hashing.getIndex)
+      flip (zipWith SlotBucket) bucket
 
-    -- NOTE: attemptNonceRecursive returns a list of "Maybe SlotIndex"
-    -- records. If *any* of those elements are Nothing (that is, at
-    -- least one of the slots were not successfully placed), then applying
-    -- sequenceA to that list will yield Nothing.
-    maybe_final_result = sequenceA $ attemptNonceRecursive
+    maybe_final_result = attemptNonce
       algorithm_params
-      values_and_size
+      previous_placements
       nonce_attempt
-      mempty
-      bucket
+      (map fst bucket)
 
     recursive_result = findNonceForBucketRecursive
       algorithm_params
       (getNextNonceCandidate (nonceParams algorithm_params) nonce_attempt)
-      values_and_size
+      previous_placements
       bucket
 
 
@@ -257,14 +257,14 @@ processMultiEntryBuckets
 processMultiEntryBuckets
     algorithm_params
     size
-    old_lookup_table
+    previously_placed_buckets
     (HashBucket computed_hash bucket_members) =
 
   NewLookupTable new_nonces new_values_dict
   where
-    NewLookupTable old_nonces old_values_dict = old_lookup_table
+    NewLookupTable old_nonces old_values_dict = previously_placed_buckets
 
-    sized_vals_dict = IntMapAndSize old_values_dict size
+    previous_placements = IntMapAndSize old_values_dict size
 
     -- This is assured to succeed; it starts with a nonce of 1
     -- but keeps incrementing it until all of the keys in this
@@ -273,7 +273,7 @@ processMultiEntryBuckets
       findNonceForBucketRecursive
         algorithm_params
         (startingNonce $ nonceParams algorithm_params)
-        sized_vals_dict
+        previous_placements
         bucket_members
 
     new_nonces = IntMap.insert
@@ -283,8 +283,8 @@ processMultiEntryBuckets
 
     new_values_dict = foldr place_values old_values_dict slots_for_bucket
 
-    place_values (SingletonBucket slot_val (_, value)) =
-      IntMap.insert (fromIntegral $ Hashing.getHash slot_val) value
+    place_values (SlotBucket slot_val (_, value)) =
+      IntMap.insert (Hashing.getIndex slot_val) value
 
 
 -- | This function exploits the sorted structure of the list

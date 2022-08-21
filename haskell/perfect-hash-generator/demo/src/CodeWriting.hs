@@ -3,7 +3,7 @@ module CodeWriting where
 import Data.List                    (intercalate)
 import qualified Data.Vector      as Vector
 import Text.Read                   (readEither)
-import System.FilePath ((</>), takeDirectory)
+import System.FilePath ((</>), (<.>), takeDirectory)
 import System.Directory (createDirectoryIfMissing)
 import qualified Data.Map              as Map
 import           Data.Bits            ((.&.))
@@ -55,22 +55,23 @@ renderValuesTableCode table = unlines [
 writeLookupFilePair :: Lookup.LookupTable Integer -> FilePath -> IO ()
 writeLookupFilePair lookup_table outputDir = do
 
-  writeFile (outputDir </> "generated_lookup.h") $ unlines [
+  writeFile (outputDir </> filename_stem <.> "h") $ unlines [
       "#include \"fnv.h\""
     , ""
     , "extern const size_t MY_SIZE;"
     , "extern const Fnv32_t MY_NONCES[];"
     ]
 
-  writeFile (outputDir </> "generated_lookup.c") rendered_lookup_table_code
+  writeFile (outputDir </> filename_stem <.> "c") rendered_lookup_table_code
   where
     rendered_lookup_table_code = CodeWriting.renderLookupTableCode lookup_table 
+    filename_stem = "generated_lookup"
 
 
 writeValuesFilePair :: Lookup.LookupTable Integer -> FilePath -> IO ()
 writeValuesFilePair lookup_table outputDir = do
 
-  writeFile (outputDir </> "generated_values.h") $ unlines [
+  writeFile (outputDir </> filename_stem <.> "h") $ unlines [
       "#define GENERATED_VALUES_TYPE int"
     , ""
     , unwords [
@@ -81,9 +82,10 @@ writeValuesFilePair lookup_table outputDir = do
       ]
     ]
 
-  writeFile (outputDir </> "generated_values.c") rendered_values_table_code
+  writeFile (outputDir </> filename_stem <.> "c") rendered_values_table_code
 
   where
+    filename_stem = "generated_values"
     elem_count = length $ Lookup.values lookup_table
     rendered_values_table_code = CodeWriting.renderValuesTableCode lookup_table 
 

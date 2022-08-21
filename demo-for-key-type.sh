@@ -7,6 +7,8 @@ KEY_TYPE="${1:-int}"
 
 CODEGEN_PARENT_DIR=$SCRIPT_DIR/c-demo/gen
 
+
+stack clean
 rm -r $CODEGEN_PARENT_DIR
 
 
