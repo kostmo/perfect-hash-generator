@@ -52,20 +52,25 @@ renderValuesTableCode table = unlines [
       map show $ Vector.toList $ Lookup.values table
 
 
-writeLookupFilePair :: Lookup.LookupTable Integer -> FilePath -> IO ()
-writeLookupFilePair lookup_table outputDir = do
+writeLookupFilePair :: KeyType -> Lookup.LookupTable Integer -> FilePath -> IO ()
+writeLookupFilePair key_type lookup_table outputDir = do
 
   writeFile (outputDir </> filename_stem <.> "h") $ unlines [
       "#include \"fnv.h\""
     , ""
     , "extern const size_t MY_SIZE;"
     , "extern const Fnv32_t MY_NONCES[];"
+--    , unwords ["#define", "FNV_LOOKUP_FUNCTION", lookup_function_name]
     ]
 
   writeFile (outputDir </> filename_stem <.> "c") rendered_lookup_table_code
   where
     rendered_lookup_table_code = CodeWriting.renderLookupTableCode lookup_table 
     filename_stem = "generated_lookup"
+
+    _lookup_function_name = case key_type of
+      IntKey -> "fnv_32a_numeric_buf"
+      StringKey -> "fnv_32a_str"
 
 
 writeValuesFilePair :: Lookup.LookupTable Integer -> FilePath -> IO ()
@@ -90,11 +95,11 @@ writeValuesFilePair lookup_table outputDir = do
     rendered_values_table_code = CodeWriting.renderValuesTableCode lookup_table 
 
 
-writeAllFiles :: Lookup.LookupTable Integer -> FilePath -> IO ()
-writeAllFiles lookup_table outputDir = do
+writeAllFiles :: KeyType -> Lookup.LookupTable Integer -> FilePath -> IO ()
+writeAllFiles key_type lookup_table outputDir = do
   createDirectoryIfMissing True outputDir
 
-  writeLookupFilePair lookup_table outputDir
+  writeLookupFilePair key_type lookup_table outputDir
   writeValuesFilePair lookup_table outputDir
 
 
@@ -130,7 +135,7 @@ genCode keyType csvPath outputDir = do
 
   lookup_table <- genLookupTable keyType csvPath
 
-  CodeWriting.writeAllFiles lookup_table outputDir
+  CodeWriting.writeAllFiles keyType lookup_table outputDir
 
   putStrLn $ unwords ["Wrote code files to:", outputDir]
 
