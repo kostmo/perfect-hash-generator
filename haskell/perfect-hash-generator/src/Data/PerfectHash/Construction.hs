@@ -56,7 +56,7 @@ import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 
 data AlgorithmParams a = AlgorithmParams {
-    nonceParams :: NonceFindingParams
+    _nonceParams :: NonceFindingParams
   , hashFunction :: Hashing.HashFunction a Hash32
   }
 
@@ -155,8 +155,9 @@ convertToVector x = Lookup.LookupTable a1 a2
     a2 = Vector.fromList $ map snd $ IntMap.toAscList $ vals x
 
 
-
-data NonceAttemptAccumulator = NonceAttemptAccumulator IntSet [Hashing.SlotIndex]
+data NonceAttemptAccumulator = NonceAttemptAccumulator
+  IntSet -- ^ occupied slots
+  [Hashing.SlotIndex]
 
 
 -- | Computes a slot in the destination array (Data.PerfectHash.Lookup.values)
@@ -189,11 +190,11 @@ attemptNonce
     IntMapAndSize values size = values_and_size
 
     f current_key maybe_prev_accumulator = do
-      NonceAttemptAccumulator occupied_slots_for_this_nonce_attempt placed_slots <- maybe_prev_accumulator
-      guard $ IntSet.notMember slotval occupied_slots_for_this_nonce_attempt
+      NonceAttemptAccumulator occupied_slots placed_slots <- maybe_prev_accumulator
+      guard $ IntSet.notMember slotval occupied_slots
       guard $ IntMap.notMember slotval values
       return $ NonceAttemptAccumulator
-        (IntSet.insert slotval occupied_slots_for_this_nonce_attempt)
+        (IntSet.insert slotval occupied_slots)
         (slot:placed_slots)
 
       where
@@ -216,13 +217,14 @@ findNonceForBucket
   => AlgorithmParams a
   -> IntMapAndSize b -- ^ previously placed buckets
   -> [(a, b)] -- ^ colliding keys for this bucket
-  -> Maybe (PlacementAttempt (a, b))
-findNonceForBucket algorithm_params previous_placements bucket =
+  -> PlacementAttempt (a, b)
+findNonceForBucket algorithm_params@(AlgorithmParams nonce_params _) previous_placements bucket =
 
-  getFirst $ foldMap f nonce_candidates
+  -- This algorithm is assured to succeed, which is why it's safe to
+  -- use "fromJust" on it
+  Maybe.fromJust $ getFirst $ foldMap f nonce_candidates
 
   where
-    nonce_params = nonceParams algorithm_params
     nonce_candidates = iterate
       (getNextNonceCandidate nonce_params)
       (startingNonce nonce_params)
@@ -259,14 +261,10 @@ processMultiEntryBucket
 
     previous_placements = IntMapAndSize old_values_dict size
 
-    -- This is assured to succeed, which is why it's safe to
-    -- use "fromJust" on it
-    maybe_successful_attempt = findNonceForBucket
+    PlacementAttempt nonce slots_for_bucket = findNonceForBucket
       algorithm_params
       previous_placements
       bucket_members
-
-    PlacementAttempt nonce slots_for_bucket = Maybe.fromJust maybe_successful_attempt
 
     new_nonces = IntMap.insert
       (fromIntegral $ Hashing.getHash computed_hash)
@@ -279,13 +277,13 @@ processMultiEntryBucket
       IntMap.insert (Hashing.getIndex slot_val) value
 
 
--- | This function exploits the sorted structure of the list
--- by skimming the multi-entry buckets from the front of the
--- list. Then we filter the single-entry buckets by dropping
--- the empty buckets.
+-- | This function skims the multi-entry buckets from the front of the
+-- list (exploiting its sorted structure). Then we filter the single-entry
+-- buckets by dropping the empty buckets.
 --
--- The partial solution produced by this function entails
--- all of the colliding nonces as fully placed.
+-- The "partial solution" produced by this function entails
+-- all of the colliding nonces being fully placed.
+-- The non-colliding nonces are collected but not yet placed.
 handleCollidingNonces
   :: (Hashing.ToOctets a)
   => AlgorithmParams a
@@ -304,8 +302,8 @@ handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
       span ((> 1) . length . bucketMembers) $
         fromSortedList sorted_bucket_hash_tuples
 
-    -- XXX Using 'foldl' rather than 'foldr' is crucial here, given the order
-    -- of the buckets. 'foldr' would actually try to place the smallest buckets
+    -- XXX Using "foldl" rather than "foldr" is crucial here, given the order
+    -- of the buckets. "foldr" would actually try to place the smallest buckets
     -- first, making it improbable that the large buckets will be placeable,
     -- and potentially resulting in an infinite loop.
     lookup_table = foldl'
@@ -321,7 +319,7 @@ handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
       SingletonBucket hashVal <$> Maybe.listToMaybe elements
 
 
--- | Hash the keys into buckets and sort them by descending size
+-- | Hash the keys into buckets and sort the buckets by descending size
 preliminaryBucketPlacement
   :: (Hashing.ToOctets a)
   => AlgorithmParams a
@@ -350,47 +348,23 @@ assignDirectSlots
   -> PartialSolution a b
   -> LookupTable b
 assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_buckets) =
-  NewLookupTable final_nonces final_values
+  foldr f intermediate_lookup_table $
+    zip non_colliding_buckets unused_slots
   where
     isUnusedSlot (Hashing.SlotIndex s) =
       IntMap.notMember s $ vals intermediate_lookup_table
 
     unused_slots = filter isUnusedSlot $ Hashing.generateArrayIndices size
 
-    zipped_remaining_with_unused_slots =
-      zip non_colliding_buckets unused_slots
-
-    insertDirectEntry (SingletonBucket computed_hash _, free_slot_index) =
+    insertDirectEntryNonce (SingletonBucket computed_hash _, free_slot_index) =
       IntMap.insert (fromIntegral $ Hashing.getHash computed_hash) $ DirectEntry free_slot_index
 
-    final_nonces = foldr
-      insertDirectEntry
-      (nonces intermediate_lookup_table)
-      zipped_remaining_with_unused_slots
-
-    f2 (SingletonBucket _ (_, map_value), Hashing.SlotIndex free_slot_index) =
+    insertValue (SingletonBucket _ (_, map_value), Hashing.SlotIndex free_slot_index) =
       IntMap.insert free_slot_index map_value
 
-    final_values = foldr
-      f2
-      (vals intermediate_lookup_table)
-      zipped_remaining_with_unused_slots
-
-
--- | Generates a minimal perfect hash for a set of key-value pairs.
---
--- The keys must be instances of 'Hashing.ToOctets'.
--- The values may be of arbitrary type.
---
--- A 'Map' is required as input to guarantee that there are
--- no duplicate keys.
-createMinimalPerfectHash
-  :: Hashing.ToOctets k
-  => Map k v -- ^ key-value pairs
-  -> Lookup.LookupTable v
-     -- ^ output for use by 'Lookup.lookup' or a custom code generator
-createMinimalPerfectHash =
-  createMinimalPerfectHash' defaultAlgorithmParams
+    f x (NewLookupTable ns vs) = NewLookupTable
+      (insertDirectEntryNonce x ns)
+      (insertValue x vs)
 
 
 -- | Parameterized variant of 'createMinimalPerfectHash'
@@ -417,6 +391,22 @@ createMinimalPerfectHash' algorithm_params original_words_dict =
       sorted_bucket_hash_tuples
 
     final_solution = assignDirectSlots size partial_solution
+
+
+-- | Generates a minimal perfect hash for a set of key-value pairs.
+--
+-- The keys must be instances of 'Hashing.ToOctets'.
+-- The values may be of arbitrary type.
+--
+-- A 'Map' is required as input as a guarantee that there are
+-- no duplicate keys.
+createMinimalPerfectHash
+  :: Hashing.ToOctets k
+  => Map k v -- ^ key-value pairs
+  -> Lookup.LookupTable v
+     -- ^ output for use by 'Lookup.lookup' or a custom code generator
+createMinimalPerfectHash =
+  createMinimalPerfectHash' defaultAlgorithmParams
 
 
 -- | Stores the keys alongside the values so that lookups using
