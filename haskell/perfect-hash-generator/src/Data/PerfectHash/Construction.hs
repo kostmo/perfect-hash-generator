@@ -46,6 +46,7 @@ import Data.Function (on)
 import           Data.Ord                 (Down (Down))
 import qualified Data.Vector      as Vector
 import qualified Data.Maybe               as Maybe
+import Debug.Trace (trace)
 import Data.Monoid (getFirst, First(..))
 
 import qualified Data.PerfectHash.Hashing as Hashing
@@ -58,6 +59,7 @@ import qualified Data.PerfectHash.Types.Nonces as Nonces
 data AlgorithmParams a = AlgorithmParams {
     _nonceParams :: NonceFindingParams
   , hashFunction :: Hashing.HashFunction a Hash32
+  , maxNonceAttempts :: Int
   }
 
 
@@ -88,7 +90,7 @@ data SingletonBucket a = SingletonBucket Hash32 a
 data HashBucket a = HashBucket {
     _hashVal :: Hash32
   , bucketMembers :: [a]
-  }
+  } deriving Show
 
 instance Eq (HashBucket a) where 
   (==) = (==) `on` (Down . length . bucketMembers)
@@ -124,6 +126,7 @@ defaultAlgorithmParams
 defaultAlgorithmParams = AlgorithmParams
   (NonceFindingParams (Nonces.mapNonce (+1)) (Nonces.Nonce 1))
   Hashing.modernHash
+  1000
 
 
 -- * Functions
@@ -168,16 +171,18 @@ data NonceAttemptAccumulator = NonceAttemptAccumulator
 -- This function is able to fail-fast if one of the elements of the bucket
 -- yields a collision when using the new nonce.
 attemptNonce
-  :: Hashing.ToOctets a
+  :: (Hashing.ToOctets a, Show a, Show b)
   => AlgorithmParams a
   -> IntMapAndSize b
   -> [a] -- ^ keys
+  -> Int -- ^ attempt number
   -> Nonce
   -> Maybe [Hashing.SlotIndex]
 attemptNonce
     algorithm_params
     values_and_size
     remaining_bucket_keys
+    nonce_attempt_number
     nonce = do
 
     NonceAttemptAccumulator _ vals <- maybe_fold_result
@@ -187,10 +192,15 @@ attemptNonce
     initial_accumulator = pure $ NonceAttemptAccumulator mempty mempty
     maybe_fold_result = foldr f initial_accumulator remaining_bucket_keys
 
-    IntMapAndSize values size = values_and_size
+    max_nonce_attempts = maxNonceAttempts algorithm_params
+    IntMapAndSize values size = if nonce_attempt_number > max_nonce_attempts
+      then error $ unwords ["Exceeded", show max_nonce_attempts, "nonce attempts for bucket containing:", show remaining_bucket_keys]
+      else values_and_size
 
     f current_key maybe_prev_accumulator = do
-      NonceAttemptAccumulator occupied_slots placed_slots <- maybe_prev_accumulator
+      NonceAttemptAccumulator occupied_slots_debug placed_slots <- maybe_prev_accumulator
+      let occupied_slots = trace (unwords ["Nonce:", show nonce, "; slot:", show slot, "; occupied_slots:", show occupied_slots_debug, "; placed_slots:", show placed_slots, "; remaining_bucket_keys:", show remaining_bucket_keys, "; values:", show values]) occupied_slots_debug
+
       guard $ IntSet.notMember slotval occupied_slots
       guard $ IntMap.notMember slotval values
       return $ NonceAttemptAccumulator
@@ -213,26 +223,27 @@ attemptNonce
 -- Increment the candidate nonce by @1@ each time.
 -- Theoretically we're guaranteed to eventually find a solution.
 findNonceForBucket
-  :: (Hashing.ToOctets a)
+  :: (Hashing.ToOctets a, Show a, Show b)
   => AlgorithmParams a
   -> IntMapAndSize b -- ^ previously placed buckets
   -> [(a, b)] -- ^ colliding keys for this bucket
   -> PlacementAttempt (a, b)
-findNonceForBucket algorithm_params@(AlgorithmParams nonce_params _) previous_placements bucket =
+findNonceForBucket algorithm_params@(AlgorithmParams nonce_params _ _) previous_placements bucket =
 
   -- This algorithm is assured to succeed, which is why it's safe to
   -- use "fromJust" on it
-  Maybe.fromJust $ getFirst $ foldMap f nonce_candidates
+  Maybe.fromJust $ getFirst $ foldMap f $ zip [1..] nonce_candidates
 
   where
     nonce_candidates = iterate
       (getNextNonceCandidate nonce_params)
       (startingNonce nonce_params)
 
-    f nonce_attempt = First $ wrapSlotIndicesAsAttempt nonce_attempt <$> attemptNonce
+    f (attempt_number, nonce_attempt) = First $ wrapSlotIndicesAsAttempt nonce_attempt <$> attemptNonce
       algorithm_params
       previous_placements
       (map fst bucket)
+      attempt_number
       nonce_attempt
 
     wrapSlotIndicesAsAttempt nonce_attempt = PlacementAttempt nonce_attempt .
@@ -243,7 +254,7 @@ findNonceForBucket algorithm_params@(AlgorithmParams nonce_params _) previous_pl
 -- until one is found that results in no collisions for both this bucket
 -- and all previously placed buckets.
 processMultiEntryBucket
-  :: (Hashing.ToOctets a)
+  :: (Hashing.ToOctets a, Show a, Show b)
   => AlgorithmParams a
   -> ArraySize
   -> LookupTable b
@@ -285,7 +296,7 @@ processMultiEntryBucket
 -- all of the colliding nonces being fully placed.
 -- The non-colliding nonces are collected but not yet placed.
 handleCollidingNonces
-  :: (Hashing.ToOctets a)
+  :: (Hashing.ToOctets a, Show a, Show b)
   => AlgorithmParams a
   -> ArraySize
   -> SortedList (HashBucket (a, b))
@@ -298,9 +309,12 @@ handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
     -- Since the buckets have been sorted by descending size,
     -- once we get to the bucket with 1 or fewer elements,
     -- we know there are no more collision buckets.
-    (multi_entry_buckets, single_or_fewer_buckets) =
+    (multi_entry_buckets_debug, single_or_fewer_buckets_debug) =
       span ((> 1) . length . bucketMembers) $
         fromSortedList sorted_bucket_hash_tuples
+
+    multi_entry_buckets = trace (unwords ["Length of multi_entry_buckets:", show $ length multi_entry_buckets_debug, ";", show multi_entry_buckets_debug]) multi_entry_buckets_debug
+    single_or_fewer_buckets = trace (unwords ["Length of single_or_fewer_buckets:", show $ length single_or_fewer_buckets_debug, ";", show single_or_fewer_buckets_debug]) single_or_fewer_buckets_debug
 
     -- XXX Using "foldl" rather than "foldr" is crucial here, given the order
     -- of the buckets. "foldr" would actually try to place the smallest buckets
@@ -369,7 +383,7 @@ assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_
 
 -- | Parameterized variant of 'createMinimalPerfectHash'
 createMinimalPerfectHash'
-  :: Hashing.ToOctets k
+  :: (Hashing.ToOctets k, Show k, Show v)
   => AlgorithmParams k
   -> Map k v -- ^ key-value pairs
   -> Lookup.LookupTable v
@@ -401,7 +415,7 @@ createMinimalPerfectHash' algorithm_params original_words_dict =
 -- A 'Map' is required as input as a guarantee that there are
 -- no duplicate keys.
 createMinimalPerfectHash
-  :: Hashing.ToOctets k
+  :: (Hashing.ToOctets k, Show k, Show v)
   => Map k v -- ^ key-value pairs
   -> Lookup.LookupTable v
      -- ^ output for use by 'Lookup.lookup' or a custom code generator
@@ -412,7 +426,7 @@ createMinimalPerfectHash =
 -- | Stores the keys alongside the values so that lookups using
 -- invalid keys can be detected.
 createMinimalPerfectHashWithKeys
-  :: Hashing.ToOctets k
+  :: (Hashing.ToOctets k, Show k, Show v)
   => Map k v -- ^ key-value pairs
   -> Lookup.LookupTable (k, v)
      -- ^ output for use by 'Lookup.lookup' or a custom code generator

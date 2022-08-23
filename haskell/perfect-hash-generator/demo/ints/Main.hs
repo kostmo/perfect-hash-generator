@@ -7,6 +7,7 @@ import Options.Applicative
 
 import qualified Data.PerfectHash.Construction as Construction
 import qualified Data.PerfectHash.Lookup       as Lookup
+import qualified Data.PerfectHash.Hashing       as Hashing
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 
 import qualified Exercise
@@ -50,7 +51,18 @@ doTimed go = do
   return $ fromIntegral (end - start) / (10^12)
 
 
+displayHash :: String -> String
+displayHash input = unwords [
+    "Hash of \"" <> input <> "\":"
+  , printf "0x%08x" $ Hashing.getHash $ Hashing.modernHash Nothing input
+  ]
+
 run (DemoOptions valueCount _debugEnabled) = do
+
+  putStrLn $ displayHash "foo"
+  putStrLn $ displayHash "abc"
+
+
   putStrLn $ unwords [
       "Keys size:"
     , show $ length intMapTuples

@@ -41,6 +41,7 @@ newtype Hash a = Hash {getHash :: a}
 type Hash32 = Hash Word32
 
 newtype SlotIndex = SlotIndex {getIndex :: Int}
+  deriving Show
 
 newtype ArraySize = ArraySize Int
   deriving Show

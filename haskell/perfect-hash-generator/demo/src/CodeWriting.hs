@@ -27,12 +27,20 @@ curly :: String -> String
 curly x = "{" <> x <> "}"
 
 
-renderLookupTableCode :: Lookup.LookupTable Integer -> String
-renderLookupTableCode table = unlines [
-      "#include \"generated_lookup.h\""
+quote :: String -> String
+quote x = "\"" <> x <> "\""
+
+
+semi :: String -> String
+semi x = x <> ";"
+
+
+renderLookupTableCode :: String -> Lookup.LookupTable Integer -> String
+renderLookupTableCode filename_stem table = unlines [
+      unwords ["#include", quote (filename_stem <.> "h")]
     , ""
-    , "const Fnv32_t MY_NONCES[] = " <> nonces_line <> ";"
-    , "const size_t MY_SIZE = " <> show elem_count <> ";"
+    , semi $ "const Fnv32_t MY_NONCES[] = " <> nonces_line
+    , semi $ "const size_t MY_SIZE = " <> show elem_count
     ]
   
   where
@@ -40,11 +48,11 @@ renderLookupTableCode table = unlines [
     nonces_line = curly $ intercalate ", " $ map show $ Vector.toList $ Lookup.nonces table
 
 
-renderValuesTableCode :: Lookup.LookupTable Integer -> String
-renderValuesTableCode table = unlines [
-      "#include \"generated_values.h\""
+renderValuesTableCode :: String -> Lookup.LookupTable Integer -> String
+renderValuesTableCode filename_stem table = unlines [
+      unwords ["#include", quote (filename_stem <.> "h")]
     , ""
-    , "const GENERATED_VALUES_TYPE HASHED_VALUES[] = " <> values_line <> ";"
+    , semi $ "const GENERATED_VALUES_TYPE HASHED_VALUES[] = " <> values_line
     ]
 
   where
@@ -55,17 +63,23 @@ renderValuesTableCode table = unlines [
 writeLookupFilePair :: KeyType -> Lookup.LookupTable Integer -> FilePath -> IO ()
 writeLookupFilePair key_type lookup_table outputDir = do
 
+  print "Q1"
+
   writeFile (outputDir </> filename_stem <.> "h") $ unlines [
-      "#include \"fnv.h\""
+      unwords ["#include", quote "fnv.h"]
     , ""
-    , "extern const size_t MY_SIZE;"
-    , "extern const Fnv32_t MY_NONCES[];"
+    , semi "extern const size_t MY_SIZE"
+    , semi "extern const Fnv32_t MY_NONCES[]"
 --    , unwords ["#define", "FNV_LOOKUP_FUNCTION", lookup_function_name]
     ]
 
+  print "Q2"
+
   writeFile (outputDir </> filename_stem <.> "c") rendered_lookup_table_code
+
+  print "Q3"
   where
-    rendered_lookup_table_code = CodeWriting.renderLookupTableCode lookup_table 
+    rendered_lookup_table_code = CodeWriting.renderLookupTableCode filename_stem lookup_table 
     filename_stem = "generated_lookup"
 
     _lookup_function_name = case key_type of
@@ -79,11 +93,11 @@ writeValuesFilePair lookup_table outputDir = do
   writeFile (outputDir </> filename_stem <.> "h") $ unlines [
       "#define GENERATED_VALUES_TYPE int"
     , ""
-    , unwords [
+    , semi $ unwords [
         "extern"
       , "const"
       , "GENERATED_VALUES_TYPE"
-      , "HASHED_VALUES" <> bracket (show elem_count) <> ";"
+      , "HASHED_VALUES" <> bracket (show elem_count)
       ]
     ]
 
@@ -92,32 +106,39 @@ writeValuesFilePair lookup_table outputDir = do
   where
     filename_stem = "generated_values"
     elem_count = length $ Lookup.values lookup_table
-    rendered_values_table_code = CodeWriting.renderValuesTableCode lookup_table 
+    rendered_values_table_code = CodeWriting.renderValuesTableCode filename_stem lookup_table 
 
 
 writeAllFiles :: KeyType -> Lookup.LookupTable Integer -> FilePath -> IO ()
 writeAllFiles key_type lookup_table outputDir = do
   createDirectoryIfMissing True outputDir
 
+  print "Got here 1"
   writeLookupFilePair key_type lookup_table outputDir
+  print "Got here 1a"
   writeValuesFilePair lookup_table outputDir
+  print "Got here 1b"
 
 
 genLookupTable :: KeyType -> FilePath -> IO (Lookup.LookupTable Integer)
 genLookupTable keyType csvPath = do
 
+  print "Got here 2"
   either_result_int <- InputParsing.parseCsv readEither csvPath :: IO (Either String [(Int, Integer)])
+  print "Got here 3"
   either_result_string <- InputParsing.parseCsv pure csvPath :: IO (Either String [(String, Integer)])
 
-  let my_map_int :: Map.Map Int Integer
-      my_map_int = makeMap either_result_int
+  print "Got here 4"
 
-      my_map_string :: Map.Map String Integer
-      my_map_string = makeMap either_result_string
+  let int_map = makeMap either_result_int
+      str_map = makeMap either_result_string
 
-      lookup_table = case keyType of
-        IntKey -> Construction.createMinimalPerfectHash my_map_int
-        StringKey -> Construction.createMinimalPerfectHash my_map_string
+
+  print $ unwords ["str_map:", show str_map]
+
+  let lookup_table = case keyType of
+        IntKey -> Construction.createMinimalPerfectHash int_map
+        StringKey -> Construction.createMinimalPerfectHash str_map
 
   return lookup_table
 
@@ -155,13 +176,21 @@ genCsv (MapGenerationParameters keyType maxKeyByteCount entryCount) csvPath = do
 
   putStrLn $ unwords ["Wrote CSV file to:", csvPath]
   where
+    demoStringMap :: Map.Map String Integer
+    demoStringMap = Map.fromList [
+        ("foo", 1)
+      , ("abc", 3)
+      , ("bar", 2)
+      , ("xyz", 4)
+      ]
+
     file_contents = case keyType of
       IntKey -> renderFileContents $ map (\(k, v) -> (show k, show v)) $
         Map.toList $ Map.mapKeys (.&. bitmask) $ Exercise.mkIntMapTuples entryCount
         where
           bitmask = 2^(maxKeyByteCount * 8) - 1
       StringKey -> renderFileContents $ map (fmap show) $
-        Map.toList $ Map.fromList [("foo", 1), ("bar", 2), ("abc", 3)]
+        Map.toList demoStringMap
     
     renderFileContents :: [(String, String)] -> String
     renderFileContents my_tuples = unlines $
