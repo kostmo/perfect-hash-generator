@@ -113,7 +113,7 @@ lookup hash_function lookup_table key =
 
     table_size = size lookup_table
 
-    Hashing.SlotIndex nonce_index = Hashing.hashToSlot
+    Hashing.HashSlot (Hashing.SlotIndex nonce_index) _ = Hashing.hashToSlot
       hash_function
       Nothing
       table_size key
@@ -123,7 +123,7 @@ lookup hash_function lookup_table key =
     -- Negative nonce value indicates that we don't need extra lookup layer
     Hashing.SlotIndex v_key = if Nonces.isDirectSlot nonce
       then decodeDirectEntry nonce
-      else Hashing.hashToSlot hash_function (Just $ Nonces.Nonce nonce) table_size key
+      else Hashing.getSlot $ Hashing.hashToSlot hash_function (Just $ Nonces.Nonce nonce) table_size key
 
 
 -- | Wraps the 'lookup' function with a check for existence of the

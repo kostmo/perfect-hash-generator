@@ -41,10 +41,18 @@ newtype Hash a = Hash {getHash :: a}
 type Hash32 = Hash Word32
 
 newtype SlotIndex = SlotIndex {getIndex :: Int}
-  deriving Show
+  deriving (Eq, Show)
 
 newtype ArraySize = ArraySize Int
   deriving Show
+
+-- | This type is strictly for debugging; it carries the SlotIndex
+-- (the necessary datum) as well as the original hash
+-- (the debugging datum).
+data HashSlot = HashSlot {
+    getSlot :: SlotIndex
+  , getOriginalHash :: Hash32
+  } deriving (Eq, Show)
 
 
 -- | Parameters for FNV hashing algorithm
@@ -126,9 +134,12 @@ hashToSlot
   -> Maybe Nonce
   -> ArraySize
   -> a -- ^ key
-  -> SlotIndex
+  -> HashSlot
 hashToSlot hash_function maybe_nonce (ArraySize size) key =
-  SlotIndex $ fromIntegral (getHash (hash_function maybe_nonce key)) `mod` size
+  HashSlot slot h
+  where
+    h = hash_function maybe_nonce key
+    slot = SlotIndex $ fromIntegral (getHash h) `mod` size
 
 
 -- | The interface is comparable to the

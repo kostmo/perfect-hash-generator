@@ -31,7 +31,6 @@ module Data.PerfectHash.Construction (
   , createMinimalPerfectHashWithKeys
   ) where
 
-import Control.Arrow (first)
 import Data.Tuple (swap)
 import           Control.Monad            (join, guard)
 import Data.SortedList (SortedList, toSortedList, fromSortedList)
@@ -46,7 +45,7 @@ import Data.Function (on)
 import           Data.Ord                 (Down (Down))
 import qualified Data.Vector      as Vector
 import qualified Data.Maybe               as Maybe
-import Debug.Trace (trace)
+--import Debug.Trace (trace)
 import Data.Monoid (getFirst, First(..))
 
 import qualified Data.PerfectHash.Hashing as Hashing
@@ -83,13 +82,14 @@ data LookupTable a = NewLookupTable {
   }
 
 
-data SingletonBucket a = SingletonBucket Hash32 a
+data SingletonBucket a = SingletonBucket Hashing.SlotIndex a
   deriving Eq
 
 
+-- TODO: This type may be redundant with SlotBucket?
 data HashBucket a = HashBucket {
-    _hashVal :: Hash32
-  , bucketMembers :: [a]
+    _theSlot :: Hashing.SlotIndex
+  , bucketMembers :: [(a, Hashing.HashSlot)]
   } deriving Show
 
 instance Eq (HashBucket a) where 
@@ -199,7 +199,24 @@ attemptNonce
 
     f current_key maybe_prev_accumulator = do
       NonceAttemptAccumulator occupied_slots_debug placed_slots <- maybe_prev_accumulator
-      let occupied_slots = trace (unwords ["Nonce:", show nonce, "; slot:", show slot, "; occupied_slots:", show occupied_slots_debug, "; placed_slots:", show placed_slots, "; remaining_bucket_keys:", show remaining_bucket_keys, "; values:", show values]) occupied_slots_debug
+      {-
+      let occupied_slots = trace (unwords [
+              "Nonce:"
+            , show nonce
+            , "; slot:"
+            , show slot
+            , "; occupied_slots:"
+            , show occupied_slots_debug
+            , "; placed_slots:"
+            , show placed_slots
+            , "; remaining_bucket_keys:"
+            , show remaining_bucket_keys
+            , "; values:"
+            , show values
+            ]) occupied_slots_debug
+      -}
+      let occupied_slots = occupied_slots_debug
+
 
       guard $ IntSet.notMember slotval occupied_slots
       guard $ IntMap.notMember slotval values
@@ -208,12 +225,13 @@ attemptNonce
         (slot:placed_slots)
 
       where
-        slot = Hashing.hashToSlot
+        hash_slot = Hashing.hashToSlot
           (hashFunction algorithm_params)
           (Just nonce)
           size
           current_key
 
+        Hashing.HashSlot slot _ = hash_slot
         Hashing.SlotIndex slotval = slot
 
 
@@ -226,15 +244,18 @@ findNonceForBucket
   :: (Hashing.ToOctets a, Show a, Show b)
   => AlgorithmParams a
   -> IntMapAndSize b -- ^ previously placed buckets
-  -> [(a, b)] -- ^ colliding keys for this bucket
+  -> [((a, b), Hashing.HashSlot)] -- ^ colliding keys for this bucket
   -> PlacementAttempt (a, b)
-findNonceForBucket algorithm_params@(AlgorithmParams nonce_params _ _) previous_placements bucket =
+findNonceForBucket algorithm_params@(AlgorithmParams nonce_params _ _) previous_placements augmented_bucket =
 
   -- This algorithm is assured to succeed, which is why it's safe to
   -- use "fromJust" on it
   Maybe.fromJust $ getFirst $ foldMap f $ zip [1..] nonce_candidates
 
   where
+
+    bucket = map fst augmented_bucket
+
     nonce_candidates = iterate
       (getNextNonceCandidate nonce_params)
       (startingNonce nonce_params)
@@ -264,7 +285,7 @@ processMultiEntryBucket
     algorithm_params
     size
     previously_placed_buckets
-    (HashBucket computed_hash bucket_members) =
+    (HashBucket slot bucket_members) =
 
   NewLookupTable new_nonces new_values_dict
   where
@@ -278,7 +299,7 @@ processMultiEntryBucket
       bucket_members
 
     new_nonces = IntMap.insert
-      (fromIntegral $ Hashing.getHash computed_hash)
+      (Hashing.getIndex slot)
       (WrappedNonce nonce)
       old_nonces
 
@@ -301,10 +322,16 @@ handleCollidingNonces
   -> ArraySize
   -> SortedList (HashBucket (a, b))
   -> PartialSolution a b
-handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
+handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples_debug =
 
   PartialSolution lookup_table non_colliding_buckets
   where
+
+
+--    sorted_bucket_hash_tuples = trace (unwords ["sorted_bucket_hash_tuples:", show sorted_bucket_hash_tuples_debug]) sorted_bucket_hash_tuples_debug
+    sorted_bucket_hash_tuples = sorted_bucket_hash_tuples_debug
+
+
 
     -- Since the buckets have been sorted by descending size,
     -- once we get to the bucket with 1 or fewer elements,
@@ -313,8 +340,19 @@ handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
       span ((> 1) . length . bucketMembers) $
         fromSortedList sorted_bucket_hash_tuples
 
-    multi_entry_buckets = trace (unwords ["Length of multi_entry_buckets:", show $ length multi_entry_buckets_debug, ";", show multi_entry_buckets_debug]) multi_entry_buckets_debug
-    single_or_fewer_buckets = trace (unwords ["Length of single_or_fewer_buckets:", show $ length single_or_fewer_buckets_debug, ";", show single_or_fewer_buckets_debug]) single_or_fewer_buckets_debug
+    {-
+    multi_entry_buckets = trace (unwords [
+        "Length of multi_entry_buckets:"
+      , show $ length multi_entry_buckets_debug
+      , ";"
+      , show multi_entry_buckets_debug
+      ]) multi_entry_buckets_debug
+    -}
+    multi_entry_buckets = multi_entry_buckets_debug
+
+
+    -- single_or_fewer_buckets = trace (unwords ["Length of single_or_fewer_buckets:", show $ length single_or_fewer_buckets_debug, ";", show single_or_fewer_buckets_debug]) single_or_fewer_buckets_debug
+    single_or_fewer_buckets = single_or_fewer_buckets_debug
 
     -- XXX Using "foldl" rather than "foldr" is crucial here, given the order
     -- of the buckets. "foldr" would actually try to place the smallest buckets
@@ -329,8 +367,8 @@ handleCollidingNonces algorithm_params size sorted_bucket_hash_tuples =
       convertToSingletonBucket
       single_or_fewer_buckets
 
-    convertToSingletonBucket (HashBucket hashVal elements) =
-      SingletonBucket hashVal <$> Maybe.listToMaybe elements
+    convertToSingletonBucket (HashBucket mySlot augmented_elements) =
+      SingletonBucket mySlot <$> Maybe.listToMaybe (map fst augmented_elements)
 
 
 -- | Hash the keys into buckets and sort the buckets by descending size
@@ -345,12 +383,17 @@ preliminaryBucketPlacement algo_params sized_list =
     SizedList tuplified_words_dict size = sized_list
 
     h = Hashing.hashToSlot (hashFunction algo_params) Nothing size
-    f = Hashing.getIndex . h . fst
 
-    slot_key_pairs = deriveTuples f tuplified_words_dict
+    -- Gets the HashSlot of the key in each key-value pair.
+    -- The HashSlot becomes the second element of the outer tuple.
+    keval_hashslot_tuples = deriveTuples (h . fst) tuplified_words_dict
 
-    bucket_hash_tuples = map (uncurry HashBucket . first (Hashing.Hash . fromIntegral)) $
-      IntMap.toList $ binTuplesBySecond slot_key_pairs
+    int_bucketable_pairs = deriveTuples (Hashing.getIndex . Hashing.getSlot . snd) keval_hashslot_tuples
+
+    q (intval, items) = HashBucket (Hashing.SlotIndex intval) items
+
+    bucket_hash_tuples = map q $
+        IntMap.toList $ binFirstElementBySecond int_bucketable_pairs
 
 
 -- | Arbitrarily pair the non-colliding buckets with free slots.
@@ -370,8 +413,8 @@ assignDirectSlots size (PartialSolution intermediate_lookup_table non_colliding_
 
     unused_slots = filter isUnusedSlot $ Hashing.generateArrayIndices size
 
-    insertDirectEntryNonce (SingletonBucket computed_hash _, free_slot_index) =
-      IntMap.insert (fromIntegral $ Hashing.getHash computed_hash) $ DirectEntry free_slot_index
+    insertDirectEntryNonce (SingletonBucket slot_index _, free_slot_index) =
+      IntMap.insert (Hashing.getIndex slot_index) $ DirectEntry free_slot_index
 
     insertValue (SingletonBucket _ (_, map_value), Hashing.SlotIndex free_slot_index) =
       IntMap.insert free_slot_index map_value
@@ -438,11 +481,11 @@ createMinimalPerfectHashWithKeys =
 
 -- | Place the first elements of the tuples into bins according to the second
 -- element.
-binTuplesBySecond
+binFirstElementBySecond
   :: (Foldable t)
   => t (a, Int)
   -> IntMap [a]
-binTuplesBySecond = foldr f mempty
+binFirstElementBySecond = foldr f mempty
   where
     f = uncurry (IntMap.insertWith mappend) . fmap pure . swap
 
