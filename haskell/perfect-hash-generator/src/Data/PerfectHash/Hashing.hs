@@ -20,6 +20,7 @@ import           Data.Text            (Text)
 import qualified Data.Text            as T
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 import Data.PerfectHash.Types.Nonces (Nonce)
+import           Text.Printf
 import Data.Word (Word32)
 
 
@@ -35,10 +36,20 @@ import Data.Word (Word32)
 -- use when the nonce would otherwise be zero.
 type HashFunction a b = Maybe Nonce -> a -> b
 
+
 newtype Hash a = Hash {getHash :: a}
-  deriving (Eq, Show)
+  deriving Eq
+
 
 type Hash32 = Hash Word32
+
+
+instance Show Hash32 where
+  show x = "<" <> unwords [hex_rep, "(" <> binary_rep <> ")"] <> ">"
+    where
+      hex_rep = printf "0x%08x" $ getHash x
+      binary_rep = printf "0b%032b" $ getHash x
+
 
 newtype SlotIndex = SlotIndex {getIndex :: Int}
   deriving (Eq, Show)

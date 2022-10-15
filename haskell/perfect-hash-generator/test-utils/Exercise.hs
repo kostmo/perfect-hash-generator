@@ -106,3 +106,9 @@ eitherExit :: Either String b -> IO ()
 eitherExit x = case x of
   Left err -> error err
   Right _ -> return ()
+
+
+eitherError :: Either String a -> a
+eitherError x = case x of
+  Left err -> error err
+  Right x -> x

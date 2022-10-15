@@ -60,7 +60,7 @@ testHashLookups
 testHashLookups word_index_tuples =
   assertBool "Perfect hash lookups failed to match the input" $ isRight test_result_either
   where
-    lookup_table = Construction.createMinimalPerfectHash word_index_tuples
+    lookup_table = Exercise.eitherError $ Construction.createMinimalPerfectHash word_index_tuples
     test_result_either = Exercise.testPerfectLookups lookup_table word_index_tuples
 
 
@@ -91,7 +91,8 @@ tests = [
   ]
   where
     largeIntMapTuples = Exercise.mkIntMapTuples 100000
-    large_lookup_table = Construction.createMinimalPerfectHash largeIntMapTuples
+    large_lookup_table = Exercise.eitherError $
+      Construction.createMinimalPerfectHash largeIntMapTuples
 
 
 keyVerificationTestCases :: [Test]
@@ -118,9 +119,10 @@ keyVerificationTestCases = [
       , ("b", 2)
       , ("c", 9)
       ]
-    smallLookupTable = Construction.createMinimalPerfectHash smallMap
+    smallLookupTable = Exercise.eitherError $ Construction.createMinimalPerfectHash smallMap
     lookupPlain = Lookup.lookup Hashing.modernHash smallLookupTable
-    smallLookupTableStoredKeys = Construction.createMinimalPerfectHashWithKeys smallMap
+
+    smallLookupTableStoredKeys = Exercise.eitherError $  Construction.createMinimalPerfectHashWithKeys smallMap
     lookupVerified = Lookup.lookupVerifyKey Hashing.modernHash smallLookupTableStoredKeys
     
 

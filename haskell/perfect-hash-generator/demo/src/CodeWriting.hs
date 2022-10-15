@@ -123,20 +123,15 @@ writeAllFiles key_type lookup_table outputDir = do
 genLookupTable :: KeyType -> FilePath -> IO (Lookup.LookupTable Integer)
 genLookupTable keyType csvPath = do
 
-  print "Got here 2"
   either_result_int <- InputParsing.parseCsv readEither csvPath :: IO (Either String [(Int, Integer)])
-  print "Got here 3"
   either_result_string <- InputParsing.parseCsv pure csvPath :: IO (Either String [(String, Integer)])
-
-  print "Got here 4"
 
   let int_map = makeMap either_result_int
       str_map = makeMap either_result_string
 
-
   print $ unwords ["str_map:", show str_map]
 
-  let lookup_table = case keyType of
+  let lookup_table = Exercise.eitherError $ case keyType of
         IntKey -> Construction.createMinimalPerfectHash int_map
         StringKey -> Construction.createMinimalPerfectHash str_map
 
@@ -144,11 +139,9 @@ genLookupTable keyType csvPath = do
 
   where
     makeMap :: (Ord a, Show a) => Either String [(a, Integer)] -> Map.Map a Integer
-    makeMap either_result = case either_map of
-      Right x -> x
-      Left y -> error y
-      where
-        either_map = InputParsing.validateMap =<< either_result
+    makeMap either_result =
+      Exercise.eitherError $ InputParsing.validateMap =<< either_result
+
 
 
 genCode :: KeyType -> FilePath -> FilePath -> IO ()
@@ -178,10 +171,25 @@ genCsv (MapGenerationParameters keyType maxKeyByteCount entryCount) csvPath = do
   where
     demoStringMap :: Map.Map String Integer
     demoStringMap = Map.fromList [
-        ("foo", 1)
-      , ("abc", 3)
-      , ("bar", 2)
-      , ("xyz", 4)
+      --   ("foo", 1) -- THESE TWO COLLIDE A
+      -- , ("abc", 3) -- THESE TWO COLLIDE A
+      -- , ("bar", 2)
+      -- , ("xyz", 4)
+      --   ( "fee", 1) -- THESE TWO COLLIDE B
+      -- , ( "baa", 2) -- THESE TWO COLLIDE B
+
+      --   ( "a", 1) -- THESE TWO COLLIDE C
+      -- , ( "c", 2) -- THESE TWO COLLIDE C
+
+      --   ( "a", 1) -- THESE TWO COLLIDE D
+      -- , ( "e", 2) -- THESE TWO COLLIDE D
+      
+
+      --   ( "a", 1) -- THESE TWO COLLIDE E
+      -- , ( "g", 2) -- THESE TWO COLLIDE E
+
+        ( "c", 1) -- THESE TWO COLLIDE F
+      , ( "g", 2) -- THESE TWO COLLIDE F
       ]
 
     file_contents = case keyType of

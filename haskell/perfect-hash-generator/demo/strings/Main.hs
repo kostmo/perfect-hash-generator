@@ -47,7 +47,7 @@ run (DemoOptions dictionaryPath enableDebug) = do
     , show $ length word_index_tuples
     ]
 
-  let lookup_table = Construction.createMinimalPerfectHash $
+  let lookup_table = Exercise.eitherError $ Construction.createMinimalPerfectHash $
         Map.fromList word_index_tuples
 
   putStrLn $ unwords [

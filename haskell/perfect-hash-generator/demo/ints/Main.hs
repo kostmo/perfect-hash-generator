@@ -68,7 +68,8 @@ run (DemoOptions valueCount _debugEnabled) = do
     , show $ length intMapTuples
     ]
 
-  let lookup_table = Construction.createMinimalPerfectHash intMapTuples
+  let lookup_table = Exercise.eitherError $
+        Construction.createMinimalPerfectHash intMapTuples
 
   putStrLn $ unwords [
       "Finished computing lookup table with"

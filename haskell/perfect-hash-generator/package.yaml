@@ -122,6 +122,21 @@ executables:
     - optparse-applicative
     - vector
     - containers
+  measure-hash-spread:
+    main: Main.hs
+    source-dirs:
+    - demo/hashing-spread
+    - test-utils
+    dependencies:
+    - perfect-hash-generator
+    - optparse-applicative
+    - matrix
+    - containers
+    - diagrams-svg
+    - diagrams-lib
+    - palette
+    - colour
+    - random
   gen-c-code-from-file:
     main: Main.hs
     source-dirs:
