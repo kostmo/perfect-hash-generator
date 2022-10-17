@@ -4,9 +4,10 @@ import qualified Data.Matrix           as M
 import  Data.Matrix           (Matrix)
 import Data.Foldable           (foldl')
 import Data.Word (Word32)
-import Data.Bits (testBit)
+import Data.Bits (testBit, Bits)
 
 import qualified Data.PerfectHash.Hashing as Hashing
+import Data.PerfectHash.Types.Nonces (Nonce)
 
 
 data BitSizes = BitSizes {
@@ -21,17 +22,17 @@ data BiasIndicator =
   | Correlation Double 
 
 
-type HashFunction = Int -> Word32
+type HashFunction a = Int -> a
 
-type CellFunction = InputOutputPair -> (Int, Int) -> Int
+type CellFunction a = InputOutputPair a -> (Int, Int) -> Int
 
 
 data MatrixVal = MatrixVal Int BiasIndicator
 
 
-data InputOutputPair = InputOutputPair { 
+data InputOutputPair a = InputOutputPair { 
     inputVal :: Int
-  , outputVal :: Word32
+  , outputVal :: a
   }
 
 
@@ -56,8 +57,8 @@ mkBiasIndicator max_equal_count actual_val
       midpoint = fromIntegral max_equal_count / 2
   
 
-generateMatrixForHash :: BitSizes -> Matrix MatrixVal
-generateMatrixForHash bit_sizes =
+generateMatrixForHash :: Maybe Nonce -> BitSizes -> Matrix MatrixVal
+generateMatrixForHash maybe_nonce bit_sizes =
   fmap f myMatrix
   where
     f val = MatrixVal val $ mkBiasIndicator max_equal_count val
@@ -69,18 +70,18 @@ generateMatrixForHash bit_sizes =
       h
       input_list
       
+    -- input_list = [0..2 * maxInputValue bit_sizes]
     input_list = [0..maxInputValue bit_sizes]
 
     -- main_hash = Hashing.modernHash
     main_hash = Hashing.hash32 Hashing.modernFNV1aParms {
         Hashing.innerParams = (Hashing.innerParams Hashing.modernFNV1aParms) {
           -- Hashing.magicPrime = Hashing.Hash 0x100011b
-          -- Hashing.magicPrime = Hashing.Hash 0x1001010 -- This fixes the "stuck" LSB
           Hashing.magicPrime = Hashing.primeFNV1a32bit
         }
       }
 
-    h = Hashing.getHash . main_hash Nothing
+    h = Hashing.getHash . Hashing.foldHash16 . main_hash maybe_nonce
 
 
 generateMatrixForModulus :: Int -> BitSizes -> Matrix MatrixVal
@@ -96,12 +97,13 @@ generateMatrixForModulus modulus_value bit_sizes =
       h
       input_list
 
+    h :: Int -> Word32
     h x = fromIntegral $ x `mod` modulus_value
 
     input_list = [0..4 * maxInputValue bit_sizes]
 
 
-hashCollisionsCellFunction :: InputOutputPair -> (Int, Int) -> Int
+hashCollisionsCellFunction :: (Bits a) => InputOutputPair a -> (Int, Int) -> Int
 hashCollisionsCellFunction
     (InputOutputPair input_data_val hash_val)
     (one_based_row_index, one_based_col_index) =
@@ -118,9 +120,10 @@ hashCollisionsCellFunction
 
 
 makeMatrix
-  :: BitSizes
-  -> CellFunction
-  -> HashFunction
+  :: (Bits a)
+  => BitSizes
+  -> CellFunction a
+  -> HashFunction a
   -> [Int]
   -> Matrix Int
 makeMatrix (BitSizes row_count col_count) cellFunction hashFunction =

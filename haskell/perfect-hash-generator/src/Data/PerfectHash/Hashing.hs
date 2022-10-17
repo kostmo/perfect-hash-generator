@@ -12,7 +12,7 @@
 module Data.PerfectHash.Hashing where
 
 import           Data.Binary          (encode)
-import           Data.Bits            (xor, (.&.))
+import           Data.Bits            (shiftR, xor, (.&.))
 import qualified Data.ByteString.Lazy as B (unpack)
 import           Data.Char            (ord)
 import           Data.Foldable        (foldl')
@@ -21,7 +21,7 @@ import qualified Data.Text            as T
 import qualified Data.PerfectHash.Types.Nonces as Nonces
 import Data.PerfectHash.Types.Nonces (Nonce)
 import           Text.Printf
-import Data.Word (Word32)
+import Data.Word (Word32, Word16)
 
 
 -- Types
@@ -43,6 +43,7 @@ newtype Hash a = Hash {getHash :: a}
 
 type Hash32 = Hash Word32
 
+type Hash16 = Hash Word16
 
 instance Show Hash32 where
   show x = "<" <> unwords [hex_rep, "(" <> binary_rep <> ")"] <> ">"
@@ -187,3 +188,30 @@ hash32inner (FNVInnerParams (Hash magic_prime) bitmask) basis =
   Hash . foldl' combine basis . toOctets
   where
     combine acc = (.&. bitmask) . (* magic_prime) . xor acc . getHash
+
+
+mask16bits :: Word32
+mask16bits = 0xffff
+
+
+-- | Note that the FNV algorithm is subject to the following shortcoming
+-- regarding "diffusion", described
+-- <https://datatracker.ietf.org/doc/html/draft-eastlake-fnv-17.html#section-7.1 here>:
+--
+-- > Diffusion - Every output bit of a cryptographic hash should be an
+-- > equally complex function of every input bit. But it is easy to see
+-- > that the least significant bit of a direct FNV hash is the XOR of
+-- > the least significant bits of every input byte and does not depend
+-- > on any other input bit. While more complex, the second through
+-- > seventh least significant bits of an FNV hash have a similar
+-- > weakness; only the top bit of the bottom byte of output, and
+-- > higher order bits, depend on all input bits. If these properties
+-- > are considered a problem, they can be easily fixed by XOR folding
+-- > (see <https://datatracker.ietf.org/doc/html/draft-eastlake-fnv-17.html#section-7.1 Section 3>).
+--
+-- Also see "xor-folding" technique described
+-- <http://isthe.com/chongo/tech/comp/fnv/#xor-fold here>.
+foldHash16 :: Hash32 -> Hash16
+foldHash16 (Hash old_hash) = Hash $ fromIntegral $
+  (old_hash `shiftR` 16) `xor` (old_hash .&. mask16bits)
+

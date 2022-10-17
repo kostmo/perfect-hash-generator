@@ -21,16 +21,19 @@ makeMatrixRow vals =
     items = map CommonRendering.singleSquare vals
 
 
-hashBitsDiagram :: Matrix HashBitsUsageHistogram.MatrixVal -> Diagram B
-hashBitsDiagram input_matrix = vcat [
-    actual_matrix
-  , CommonRendering.textEnvelope "value table"
-  ]
+hashBitsDiagram :: [Matrix HashBitsUsageHistogram.MatrixVal] -> Diagram B
+hashBitsDiagram input_matrices = 
+  vsep (4*CommonRendering.paddingSize) $ map f input_matrices
   where
-    actual_matrix = vsep CommonRendering.paddingSize horizontalRows
-    matrixRows = map makeMatrixRow $
-      M.toLists input_matrix
+    f input_matrix = vcat [
+        actual_matrix
+      , CommonRendering.textEnvelope "value table"
+      ]
+      where
+        actual_matrix = vsep CommonRendering.paddingSize horizontalRows
+        matrixRows = map makeMatrixRow $
+          M.toLists input_matrix
 
-    -- labelRow = map (singleSquare (colors !! 2) . show) [0..M.ncols input_matrix - 1]
-    -- horizontalRows = labelRow : matrixRows
-    horizontalRows = matrixRows
+        -- labelRow = map (singleSquare (colors !! 2) . show) [0..M.ncols input_matrix - 1]
+        -- horizontalRows = labelRow : matrixRows
+        horizontalRows = matrixRows
