@@ -24,7 +24,6 @@
 -- A refactoring of that Python implementation may be found
 -- <https://github.com/kostmo/perfect-hash-generator/blob/master/python/perfect-hash.py here>.
 -- This Haskell implementation was transliterated and evolved from that refactoring.
---
 module Data.PerfectHash.Construction (
     createMinimalPerfectHash
   , createMinimalPerfectHash'
@@ -62,9 +61,14 @@ data AlgorithmParams a = AlgorithmParams {
   }
 
 
+-- | Incidentally, these parameters have
+-- <https://www.gnu.org/software/gperf/manual/gperf.html#Algorithmic-Details equivalent options>
+-- in the /gperf/ tool:
+-- @-i@/@--initial-asso=@ for 'startingNonce'
+-- @-j@/@--jump=@ for 'getNextNonceCandidate'
 data NonceFindingParams = NonceFindingParams {
-    getNextNonceCandidate :: Nonce -> Nonce
-  , startingNonce :: Nonce
+    startingNonce :: Nonce
+  , getNextNonceCandidate :: Nonce -> Nonce
   }
 
 
@@ -120,11 +124,15 @@ emptyLookupTable :: LookupTable a
 emptyLookupTable = NewLookupTable mempty mempty
 
 
+-- | <https://www.gnu.org/software/gperf/manual/gperf.html#Algorithmic-Details For reference in gperf>,
+-- the default starting value is @0@,
+-- and the default increment value is @5@. In gperf the increment value is always odd, and
+-- can be specified to be a random value.
 defaultAlgorithmParams
   :: Hashing.ToOctets a
   => AlgorithmParams a
 defaultAlgorithmParams = AlgorithmParams
-  (NonceFindingParams (Nonces.mapNonce (+1)) (Nonces.Nonce 1))
+  (NonceFindingParams (Nonces.Nonce 1) (Nonces.mapNonce (+1)))
   Hashing.modernHash
   10000
 

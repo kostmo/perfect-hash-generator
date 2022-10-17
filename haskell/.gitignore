@@ -1,6 +1,9 @@
 .stack-work
 stack.yaml.lock
 
+output
+
+
 dist
 *.tix
 .hpc

@@ -5,6 +5,7 @@ resolver: lts-19.16
 packages:
 - perfect-hash-generator
 - phg-diagrams
+- collision-diagrams
 
 ghc-options:
   "$locals": -fwrite-ide-info

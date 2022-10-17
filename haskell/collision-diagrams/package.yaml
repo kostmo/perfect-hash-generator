@@ -1,4 +1,4 @@
-name: perfect-hash-generator-diagrams
+name: perfect-hash-collision-diagrams
 version: '0.1.0.0'
 synopsis: Diagrams for PHG
 description: ! '
@@ -22,13 +22,24 @@ library:
   dependencies:
   - diagrams-lib
   - diagrams-svg
+  - diagrams-contrib
   - palette
+  - matrix
+  - perfect-hash-generator
+  - split
 
-executables: 
-  mk-diagram:
+executables:
+  measure-hash-spread:
     main: Main.hs
     source-dirs:
-    - mk-diagram
+    - hashing-spread
     dependencies:
-    - perfect-hash-generator-diagrams
+    - perfect-hash-collision-diagrams
+    - optparse-applicative
+    - matrix
+    - containers
     - diagrams-svg
+    - diagrams-lib
+    - palette
+    - colour
+    - random
