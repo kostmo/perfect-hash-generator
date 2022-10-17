@@ -1,4 +1,4 @@
-module BitsHistogram where
+module HashBitsUsageHistogram where
 
 import qualified Data.Matrix           as M
 import  Data.Matrix           (Matrix)
@@ -52,7 +52,7 @@ doThing bit_sizes =
   fmap f myMatrix
   where
     f val = MatrixVal val $ mkBiasIndicator max_equal_count val
-    max_equal_count = BitsHistogram.distinctInputValueCount bit_sizes
+    max_equal_count = distinctInputValueCount bit_sizes
 
     myMatrix = makeMatrix
       bit_sizes
